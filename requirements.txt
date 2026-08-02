@@ -1,0 +1,5 @@
+curl_cffi>=0.7
+yt-dlp[default,curl-cffi]>=2026.6.9
+google-auth>=2.30
+google-auth-httplib2
+google-api-python-client

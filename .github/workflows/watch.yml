@@ -1,0 +1,31 @@
+name: watch
+on:
+  schedule:
+    - cron: "*/15 * * * *"
+  workflow_dispatch:
+
+permissions:
+  contents: write
+  actions: write
+
+concurrency:
+  group: watch
+  cancel-in-progress: false
+
+jobs:
+  watch:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Install deps
+        run: pip install --quiet "curl_cffi>=0.7"
+      - name: Watch channels
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          cd $GITHUB_WORKSPACE
+          PYTHONPATH=scripts python scripts/watch.py

@@ -1,0 +1,7 @@
+__pycache__/
+out/
+segs/
+*.mp4
+*.ass
+vod.*
+concat.txt
