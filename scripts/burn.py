@@ -10,6 +10,7 @@
      (libx264 / yuv420p / faststart / timescale 90000 — 結合前提の共通パラメータ)
 """
 import argparse
+import json
 import subprocess
 import sys
 from pathlib import Path
@@ -71,6 +72,7 @@ def main():
     ap.add_argument("seg_start", type=float)
     ap.add_argument("seg_end", type=float)
     ap.add_argument("--ass", default="out/full.ass")
+    ap.add_argument("--meta", default="out/meta.json", help="plan出力 (sourceのm3u8を使う)")
     ap.add_argument("--out", default="seg.mp4")
     ap.add_argument("--config", default="config.json")
     ap.add_argument("--fontsdir", default="fonts")
@@ -78,7 +80,14 @@ def main():
     a = ap.parse_args()
     cfg = kick_api.load_config(a.config)
 
+    # source m3u8 優先 (yt-dlpのkick抽出器は新v7 uuidのURLで404するため)
     url = f"https://kick.com/{a.slug}/videos/{a.uuid}"
+    try:
+        source = json.loads(Path(a.meta).read_text(encoding="utf-8")).get("source")
+        if source:
+            url = source
+    except Exception as e:
+        print(f"meta read failed ({e}) — fall back to page URL", file=sys.stderr)
     if not Path(a.vod).exists():
         download_vod(url, cfg.get("format_height", 720), a.vod)
     else:

@@ -34,31 +34,49 @@ def plan_segments(duration_s, segment_seconds):
 
 
 def resolve_meta(slug, uuid):
-    entry = kick_api.find_vod(slug, uuid)
+    """URLのuuidが旧v4(=一覧のvideo.uuid)でも新v7(=web.kick.comのid)でも解決する。
+    v2一覧エントリの source (m3u8) を必ず拾う (yt-dlpのkick抽出器はv7 uuidで404するため)。"""
+    videos = kick_api.get_channel_videos(slug)
+    entry = next((v for v in videos if (v.get("video") or {}).get("uuid") == uuid), None)
+    web = None
+    if entry is None:
+        ch = kick_api.get_channel(slug)
+        if not ch:
+            raise RuntimeError(f"channel not found: {slug}")
+        web = kick_api.get_video_meta_web(ch["id"], uuid)
+        if not web:
+            raise RuntimeError(f"video not found: {slug}/{uuid}")
+        ws = chat_to_ass.parse_dt(web["start_time"])
+        for v in videos:
+            try:
+                vs = chat_to_ass.parse_dt(v["start_time"])
+            except Exception:
+                continue
+            if abs((vs - ws).total_seconds()) < 120:
+                entry = v
+                break
+    if entry is None and web is None:
+        raise RuntimeError(f"video not found: {slug}/{uuid}")
+    meta = {}
+    if web:
+        meta = {
+            "title": web.get("title") or uuid,
+            "duration_s": float(web.get("duration") or 0),
+            "start_time": web.get("start_time"),
+            "channel_id": (web.get("channel") or {}).get("id"),
+            "is_live": bool(web.get("is_live")),
+            "source": None,
+        }
     if entry:
-        return {
-            "title": entry.get("session_title") or uuid,
+        meta.update({
+            "title": entry.get("session_title") or meta.get("title") or uuid,
             "duration_s": (entry.get("duration") or 0) / 1000.0,
             "start_time": entry.get("start_time"),
-            "channel_id": entry.get("channel_id"),
+            "channel_id": entry.get("channel_id") or meta.get("channel_id"),
             "is_live": bool(entry.get("is_live")),
-        }
-    ch = kick_api.get_channel(slug)
-    if not ch:
-        raise RuntimeError(f"channel not found: {slug}")
-    meta = kick_api.get_video_meta_web(ch["id"], uuid)
-    if not meta:
-        raise RuntimeError(f"video not found: {slug}/{uuid}")
-    dur = meta.get("duration") or 0
-    # web API は秒、v2 は ms。1000h超は ms とみなす
-    duration_s = dur / 1000.0 if dur > 3600 * 1000 else float(dur)
-    return {
-        "title": meta.get("session_title") or meta.get("title") or uuid,
-        "duration_s": duration_s,
-        "start_time": meta.get("start_time") or meta.get("created_at"),
-        "channel_id": ch["id"],
-        "is_live": bool(meta.get("is_live")),
-    }
+            "source": entry.get("source"),
+        })
+    return meta
 
 
 def gh_output(key, value):
@@ -110,6 +128,7 @@ def main():
         "slug": a.slug,
         "uuid": a.uuid,
         "url": f"https://kick.com/{a.slug}/videos/{a.uuid}",
+        "source": meta.get("source"),
         "title": meta["title"],
         "duration_s": meta["duration_s"],
         "start_time": meta["start_time"],
