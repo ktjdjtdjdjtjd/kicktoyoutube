@@ -1,19 +1,13 @@
 {
-  "channels": [
-    "hashimotokun78"
-  ],
+  "channels": ["yoshihisa"],
   "format_height": 720,
   "segment_seconds": 5400,
   "min_end_age_minutes": 20,
   "max_vod_age_days": 3,
-  "privacy": "unlisted",
+  "privacy": "public",
   "title_template": "{date} {title}【コメ付きアーカイブ】",
   "description_template": "{channel} {date} の配信アーカイブ（チャット焼き込み済み）\n元配信: {url}",
-  "tags": [
-    "Kick",
-    "切り抜き",
-    "アーカイブ"
-  ],
+  "tags": ["Kick", "切り抜き", "アーカイブ"],
   "category_id": "24",
   "chat_workers": 8,
   "encode_preset": "veryfast",

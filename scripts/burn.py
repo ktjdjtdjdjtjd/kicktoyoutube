@@ -24,16 +24,29 @@ def run(cmd, **kw):
     subprocess.run([str(c) for c in cmd], check=True, **kw)
 
 
-def download_vod(url, height, dest):
+def download_vod(url, height, dest, attempts=3):
     fmt = f"bv*[height<=?{height}]+ba/b[height<=?{height}]/bv*+ba/b"
-    run([
+    cmd = [
         "yt-dlp", "--impersonate", "chrome",
         "-f", fmt,
         "--no-part", "--retries", "20", "--fragment-retries", "50",
-        "--concurrent-fragments", "4",
+        "--concurrent-fragments", "2",
+        "--socket-timeout", "30",
         "--merge-output-format", "mp4",
         "-o", dest, url,
-    ])
+    ]
+    # CDNが一時的にセグメントを絞る事例あり(ランナーIP)。間を置いて丸ごとやり直す
+    import time
+    for i in range(1, attempts + 1):
+        try:
+            run(cmd)
+            return
+        except subprocess.CalledProcessError:
+            if i == attempts:
+                raise
+            print(f"download attempt {i} failed — retry in {90*i}s", file=sys.stderr)
+            Path(dest).unlink(missing_ok=True)
+            time.sleep(90 * i)
 
 
 def burn_segment(vod, ass_path, seg_start, seg_end, out, preset, crf, fontsdir):
