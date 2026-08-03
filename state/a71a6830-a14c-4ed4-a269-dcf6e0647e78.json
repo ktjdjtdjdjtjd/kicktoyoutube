@@ -4,7 +4,9 @@
   "title": "【心霊】戸山公園にいく",
   "start_time": "2026-07-05 18:53:14",
   "duration_s": 15172.0,
-  "status": "dispatched",
+  "status": "done",
   "retries": 0,
-  "dispatched_at": "2026-08-03T12:01:48.732377+00:00"
+  "dispatched_at": "2026-08-03T12:01:48.732377+00:00",
+  "updated_at": "2026-08-03T13:45:28.334538+00:00",
+  "yt_url": "https://www.youtube.com/watch?v=Ciiq12e_Yeo"
 }
