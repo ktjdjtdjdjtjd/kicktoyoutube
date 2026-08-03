@@ -3,6 +3,7 @@
   "uuid": "8c1cd17e-a040-44ca-8cb2-998b3169a609",
   "title": "初サミットお疲れ様会 8月もよろしくお願いします。",
   "start_time": "2026-08-01 07:23:47",
-  "status": "dispatched-manual",
-  "marked_at": "2026-08-02T10:54:54.473457+00:00"
+  "status": "skipped-duplicate",
+  "marked_at": "2026-08-02T10:54:54.473457+00:00",
+  "note": "v7 uuid側の台帳で処理済み (二重処理防止)"
 }

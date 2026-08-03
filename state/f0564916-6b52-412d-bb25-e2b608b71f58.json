@@ -3,6 +3,7 @@
   "uuid": "f0564916-6b52-412d-bb25-e2b608b71f58",
   "title": "初サミット参加 馴れ合い会場へ",
   "start_time": "2026-07-28 00:00:52",
-  "status": "dispatched-manual",
-  "marked_at": "2026-08-02T10:54:54.475966+00:00"
+  "status": "skipped-duplicate",
+  "marked_at": "2026-08-02T10:54:54.475966+00:00",
+  "note": "v7 uuid側の台帳で処理済み (二重処理防止)"
 }

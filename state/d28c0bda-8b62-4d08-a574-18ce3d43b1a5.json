@@ -3,6 +3,7 @@
   "uuid": "d28c0bda-8b62-4d08-a574-18ce3d43b1a5",
   "title": "【灼熱地獄】サミット前日 名古屋にきた",
   "start_time": "2026-07-27 01:31:56",
-  "status": "dispatched-manual",
-  "marked_at": "2026-08-02T10:54:54.475966+00:00"
+  "status": "skipped-duplicate",
+  "marked_at": "2026-08-02T10:54:54.475966+00:00",
+  "note": "v7 uuid側の台帳で処理済み (二重処理防止)"
 }
