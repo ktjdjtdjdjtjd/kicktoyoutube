@@ -40,7 +40,25 @@ def get_credentials():
     return creds
 
 
+QUOTA_MARKERS = ("quotaExceeded", "dailyLimitExceeded", "uploadLimitExceeded",
+                 "rateLimitExceeded")
+
+
 def upload(creds, path, title, description, tags, category_id, privacy):
+    """クォータ超過(1日6本上限など)は30分おきに最大9回待ってやり直す。"""
+    for attempt in range(1, 10):
+        try:
+            return _upload_once(creds, path, title, description, tags, category_id, privacy)
+        except HttpError as e:
+            body = str(e)
+            if e.resp.status == 403 and any(m in body for m in QUOTA_MARKERS) and attempt < 9:
+                print(f"quota exceeded — wait 30min then retry ({attempt}/9)", file=sys.stderr)
+                time.sleep(1800)
+                continue
+            raise
+
+
+def _upload_once(creds, path, title, description, tags, category_id, privacy):
     youtube = build("youtube", "v3", credentials=creds)
     body = {
         "snippet": {

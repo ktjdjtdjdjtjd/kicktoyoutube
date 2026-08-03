@@ -18,5 +18,9 @@
   "category_id": "24",
   "chat_workers": 8,
   "encode_preset": "veryfast",
-  "encode_crf": "23"
+  "encode_crf": "23",
+  "backlog": true,
+  "daily_upload_limit": 6,
+  "max_inflight": 3,
+  "dispatch_batch": 2
 }
