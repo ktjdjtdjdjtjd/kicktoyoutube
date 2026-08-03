@@ -12,14 +12,11 @@ import argparse
 import json
 import subprocess
 import sys
-import time
 from datetime import datetime, timedelta, timezone
-from pathlib import Path
 
 import kick_api
-from chat_to_ass import parse_dt
-
-STATE_DIR = Path("state")
+from chat_fetch import parse_dt
+from repo_state import STATE_DIR, commit_state
 
 
 def find_new_vods(cfg):
@@ -60,24 +57,6 @@ def find_new_vods(cfg):
 def run(cmd, check=True):
     print("+ " + " ".join(cmd), file=sys.stderr)
     return subprocess.run(cmd, check=check)
-
-
-def commit_state(paths, message):
-    run(["git", "config", "user.name", "kick-archive-bot"])
-    run(["git", "config", "user.email", "actions@users.noreply.github.com"])
-    run(["git", "add"] + [str(p) for p in paths])
-    r = subprocess.run(["git", "diff", "--cached", "--quiet"])
-    if r.returncode == 0:
-        print("nothing to commit", file=sys.stderr)
-        return True
-    run(["git", "commit", "-m", message])
-    for attempt in range(3):
-        if subprocess.run(["git", "push"]).returncode == 0:
-            return True
-        print(f"push failed, rebase retry {attempt+1}", file=sys.stderr)
-        run(["git", "pull", "--rebase"], check=False)
-        time.sleep(3)
-    return False
 
 
 def main():

@@ -84,6 +84,7 @@ def main():
 
     fields = {
         "date": meta["date"],
+        "date_slash": str(meta["date"]).replace("-", "/"),
         "title": meta["title"],
         "channel": meta["slug"],
         "url": meta["url"],

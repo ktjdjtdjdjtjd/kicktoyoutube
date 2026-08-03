@@ -1,22 +1,25 @@
-"""process の第1段: VODメタ解決 + チャット全量DL + full.ass生成 + セグメント計画。
+"""process の第1段: VODメタ解決 + チャット全量DL + エモート取得/蓄積 + セグメント計画。
 
     python plan.py <slug> <uuid> --out out/ [--config config.json] [--limit-windows N]
 
 出力:
   out/meta.json  … title / duration_s / start_time / channel_id / url / segments
-  out/full.ass   … 全区間ダンマク
-  out/chat.jsonl … 生ログ (rel秒, content)
+  out/chat.jsonl … 生ログ (rel秒, content。エモートマーカー保持)
+  out/emotes/    … この配信で使われたエモートPNG (burnジョブへartifactで渡す)
+  emotes/        … リポジトリ直下の蓄積用キャッシュ (コミットして永続化)
 GITHUB_OUTPUT があれば matrix / title / duration_s / date を書き込む。
 """
 import argparse
 import json
 import math
 import os
+import shutil
 import sys
 from pathlib import Path
 
 import kick_api
-import chat_to_ass
+import chat_fetch
+import emotes as emotes_mod
 
 
 def plan_segments(duration_s, segment_seconds):
@@ -46,10 +49,10 @@ def resolve_meta(slug, uuid):
         web = kick_api.get_video_meta_web(ch["id"], uuid)
         if not web:
             raise RuntimeError(f"video not found: {slug}/{uuid}")
-        ws = chat_to_ass.parse_dt(web["start_time"])
+        ws = chat_fetch.parse_dt(web["start_time"])
         for v in videos:
             try:
-                vs = chat_to_ass.parse_dt(v["start_time"])
+                vs = chat_fetch.parse_dt(v["start_time"])
             except Exception:
                 continue
             if abs((vs - ws).total_seconds()) < 120:
@@ -111,16 +114,33 @@ def main():
     print(f"title={meta['title']} duration={meta['duration_s']}s "
           f"channel_id={meta['channel_id']} start={meta['start_time']}", file=sys.stderr)
 
-    start_dt = chat_to_ass.parse_dt(meta["start_time"])
+    start_dt = chat_fetch.parse_dt(meta["start_time"])
     chat_dur = meta["duration_s"]
     if a.limit_windows:
         chat_dur = min(chat_dur, a.limit_windows * 5)
-    msgs = chat_to_ass.fetch_all_chat(
-        meta["channel_id"], start_dt, chat_dur, workers=cfg.get("chat_workers", 8))
+    msgs = chat_fetch.fetch_all_chat(
+        meta["channel_id"], start_dt, chat_dur,
+        workers=cfg.get("chat_workers", 8), keep_emotes=True)
     with open(outdir / "chat.jsonl", "w", encoding="utf-8") as f:
         for rel, content in msgs:
             f.write(json.dumps({"rel": rel, "content": content}, ensure_ascii=False) + "\n")
-    chat_to_ass.write_ass(msgs, str(outdir / "full.ass"))
+
+    # エモート: リポジトリ直下 emotes/ に蓄積DL → 今回使う分を out/emotes/ へコピー
+    ids = emotes_mod.collect_ids(msgs)
+    added = emotes_mod.download_missing(ids, "emotes", session=kick_api.session())
+    seg_emotes = outdir / "emotes"
+    seg_emotes.mkdir(exist_ok=True)
+    for eid in ids:
+        src = Path("emotes") / f"{eid}.png"
+        if src.exists():
+            shutil.copy2(src, seg_emotes / src.name)
+    if added:
+        try:
+            from repo_state import commit_paths
+            commit_paths(["emotes"], f"emotes: add {len(added)} ({a.slug}/{a.uuid[:8]})",
+                         fatal=False)
+        except Exception as e:
+            print(f"emote commit skipped: {e}", file=sys.stderr)
 
     segments = plan_segments(meta["duration_s"], cfg.get("segment_seconds", 5400))
     date = str(meta["start_time"])[:10]

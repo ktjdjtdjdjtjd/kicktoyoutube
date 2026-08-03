@@ -7,12 +7,13 @@
   "min_end_age_minutes": 20,
   "max_vod_age_days": 3,
   "privacy": "unlisted",
-  "title_template": "{date} {title}【コメ付きアーカイブ】",
-  "description_template": "{channel} {date} の配信アーカイブ（チャット焼き込み済み）\n元配信: {url}",
+  "title_template": "【はしもと君】{title}【{date_slash}】",
+  "description_template": "はしもと君のKICK配信の録画アーカイブです。\n\nタイムスタンプ▽\n\n\n元配信▽\n{title}\n{url}\n\n#キッカーズ #はしもと君 #横山緑",
   "tags": [
-    "Kick",
-    "切り抜き",
-    "アーカイブ"
+    "キッカーズ",
+    "はしもと君",
+    "横山緑",
+    "Kick"
   ],
   "category_id": "24",
   "chat_workers": 8,

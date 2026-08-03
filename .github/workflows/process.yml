@@ -42,8 +42,8 @@ jobs:
       - uses: actions/setup-python@v5
         with:
           python-version: "3.12"
-      - run: pip install --quiet "curl_cffi>=0.7"
-      - name: Resolve meta + download chat + build ASS
+      - run: pip install --quiet "curl_cffi>=0.7" pillow
+      - name: Resolve meta + download chat + collect emotes
         id: plan
         run: |
           PYTHONPATH=scripts python scripts/plan.py \
@@ -69,7 +69,7 @@ jobs:
       - uses: actions/setup-python@v5
         with:
           python-version: "3.12"
-      - run: pip install --quiet "curl_cffi>=0.7" "yt-dlp[default,curl-cffi]"
+      - run: pip install --quiet "curl_cffi>=0.7" "yt-dlp[default,curl-cffi]" pillow
       - name: Install ffmpeg (ubuntu-24.04ランナーは未搭載)
         run: sudo apt-get update -qq && sudo apt-get install -y -qq ffmpeg
       - name: Fetch danmaku font (pinned, verified)
@@ -92,7 +92,8 @@ jobs:
           PYTHONPATH=scripts python scripts/burn.py \
             "${{ inputs.slug }}" "${{ inputs.uuid }}" \
             "${{ matrix.seg.start }}" "${{ matrix.seg.end }}" \
-            --ass out/full.ass --meta out/meta.json --out "$seg_name" --fontsdir fonts
+            --chat out/chat.jsonl --emotes out/emotes --meta out/meta.json \
+            --font fonts/BIZUDPGothic-Regular.ttf --out "$seg_name"
           rm -f vod.mp4
       - uses: actions/upload-artifact@v4
         with:

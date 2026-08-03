@@ -7,7 +7,7 @@ import json
 from datetime import datetime, timezone
 from pathlib import Path
 
-from watch import commit_state, STATE_DIR
+from repo_state import commit_state, STATE_DIR
 
 
 def main():

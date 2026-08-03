@@ -9,14 +9,18 @@ watch.yml (15分おきcron)
       → state/<uuid>.json をコミット(二重処理ガード) → process.yml をdispatch
 
 process.yml (VODごと)
-  plan     : メタ解決 + チャット全量DL + full.ass生成 + セグメント計画(90分単位)
-  burn ×N  : VODをDL(≤720p) → 担当区間をffmpegでダンマク焼き込み (並列, 各ジョブ6h制限内)
+  plan     : メタ解決 + チャット全量DL + エモート画像の取得/蓄積 + セグメント計画(90分単位)
+  burn ×N  : VODをDL(≤720p) → 担当区間へダンマク焼き込み (並列, 各ジョブ6h制限内)
   assemble : セグメント結合(-c copy) → 機械検証(pix_fmt/尺) → YouTubeへアップ → state更新
 ```
 
-- ダンマク仕様は手元の stream-chat-burn と同一（白文字・BIZ UDPGothic・14レーン・10秒流し）
+- ダンマクは**ストリップ方式**: テキスト(白・BIZ UDPGothic・黒縁)とエモート画像(フルカラー)を
+  PILで「レーンごとの横長PNG」へ事前合成し、ffmpegはレーン数ぶんのoverlayで等速スクロールさせる。
+  libassを使わないためエモートが画像のまま焼け、エンコードも実測10倍速超と高速
+- **エモートはリポジトリ直下 `emotes/` に自動蓄積**(planジョブがDL→コミット)。
+  ローカルのディスク掃除で消える場所には置かない
+- レーン割当は常に全メッセージ一括計算のため、セグメント結合後も流れが連続する
 - フォントは実行時に google/fonts (OFL) からコミット固定+ハッシュ検証で取得
-- セグメント境界をまたぐコメントは位置を補間して継続（結合しても流れが途切れない）
 - Kick APIはCloudflare対策で curl_cffi のChrome偽装を使用（住宅回線からは実測OK。
   GitHubランナーのIPで弾かれる場合は下記「プランB」）
 
