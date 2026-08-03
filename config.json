@@ -6,7 +6,7 @@
   "segment_seconds": 5400,
   "min_end_age_minutes": 20,
   "max_vod_age_days": 3,
-  "privacy": "unlisted",
+  "privacy": "public",
   "title_template": "【はしもと君】{title}【{date_slash}】",
   "description_template": "はしもと君のKICK配信の録画アーカイブです。\n\nタイムスタンプ▽\n\n\n元配信▽\n{title}\n{url}\n\n#キッカーズ #はしもと君 #横山緑",
   "tags": [
