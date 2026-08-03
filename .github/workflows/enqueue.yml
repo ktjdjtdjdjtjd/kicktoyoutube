@@ -1,0 +1,43 @@
+name: enqueue
+# queue/*.json ({"slug":..., "uuid":...}) をpushすると process.yml をdispatchして消費する。
+# Run workflowのUIを開かずに再処理を積むための入口。
+on:
+  push:
+    paths:
+      - "queue/**"
+
+permissions:
+  contents: write
+  actions: write
+
+concurrency:
+  group: enqueue
+  cancel-in-progress: false
+
+jobs:
+  dispatch:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - name: Dispatch queued VODs
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          shopt -s nullglob
+          consumed=0
+          for f in queue/*.json; do
+            slug=$(python3 -c "import json;print(json.load(open('$f'))['slug'])")
+            uuid=$(python3 -c "import json;print(json.load(open('$f'))['uuid'])")
+            echo "dispatch: $slug/$uuid"
+            gh workflow run process.yml -f "slug=$slug" -f "uuid=$uuid"
+            git rm -q "$f"
+            consumed=$((consumed+1))
+            sleep 3
+          done
+          if [ "$consumed" -gt 0 ]; then
+            git config user.name kick-archive-bot
+            git config user.email actions@users.noreply.github.com
+            git commit -m "queue: consumed $consumed"
+            for i in 1 2 3; do git push && break || { git pull --rebase; sleep 3; }; done
+          fi
