@@ -4,7 +4,9 @@
   "title": "脱糞パトロール",
   "start_time": "2026-07-11 22:30:24",
   "duration_s": 14877.0,
-  "status": "dispatched",
+  "status": "done",
   "retries": 0,
-  "dispatched_at": "2026-08-04T09:20:02.091416+00:00"
+  "dispatched_at": "2026-08-04T09:20:02.091416+00:00",
+  "updated_at": "2026-08-04T10:49:16.857755+00:00",
+  "yt_url": "https://www.youtube.com/watch?v=-_eWK1I4mq4"
 }
