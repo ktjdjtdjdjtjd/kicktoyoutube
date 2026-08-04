@@ -28,6 +28,7 @@
     "font_px": 51,
     "emote_px": 54,
     "gif_phases": 4,
-    "gif_phase_fps": 5
+    "gif_phase_fps": 5,
+    "chunk_seconds": 1800
   }
 }

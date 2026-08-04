@@ -59,23 +59,15 @@ def probe_dims(path):
     return int(w), int(h)
 
 
-def burn_segment(vod, chat_jsonl, seg_start, seg_end, out, preset, crf,
-                 font_path, emote_dir, strips_dir="strips", cfg=None,
-                 emoji_font_path=None):
-    dur = seg_end - seg_start
-    vw, vh = probe_dims(vod)
-    scale = vh / 1080.0
-    print(f"video {vw}x{vh} scale={scale:.3f}", file=sys.stderr)
-    manifest = strip_render.build_for_segment(
-        chat_jsonl, seg_start, seg_end, font_path, emote_dir, strips_dir,
-        scale=scale, cfg=cfg, emoji_font_path=emoji_font_path)
+def _encode_chunk(vod, chunk_start, chunk_dur, manifest, strips_dir, vw,
+                  preset, crf, out):
     strips = manifest["strips"]
     lm = manifest["left_margin"]
     speed = manifest["speed"]
     pfps = manifest.get("gif_phase_fps", 5)
 
     cmd = ["ffmpeg", "-y", "-hide_banner", "-loglevel", "warning", "-stats",
-           "-ss", f"{seg_start:.3f}", "-t", f"{dur:.3f}", "-i", vod]
+           "-ss", f"{chunk_start:.3f}", "-t", f"{chunk_dur:.3f}", "-i", vod]
     entries = []  # (input_index, y, enable_expr or None)
     idx = 1
     for s in strips:
@@ -109,6 +101,53 @@ def burn_segment(vod, chat_jsonl, seg_start, seg_end, out, preset, crf,
             "-movflags", "+faststart",
             out]
     run(cmd)
+
+
+def burn_segment(vod, chat_jsonl, seg_start, seg_end, out, preset, crf,
+                 font_path, emote_dir, strips_dir="strips", cfg=None,
+                 emoji_font_path=None):
+    """セグメントをさらに chunk_seconds (既定30分) 刻みで焼いて結合する。
+
+    ストリップ幅∝速度×時間 かつ ffmpegは全入力フレームを常駐させるため、
+    高速設定×GIF位相数だとメモリが跳ねる。チャンク化で常に数GB以下に抑える
+    (レーン割当は全体一括なのでチャンク境界でも流れは連続する)。"""
+    vw, vh = probe_dims(vod)
+    scale = vh / 1080.0
+    chunk_seconds = float(((cfg or {}).get("danmaku") or {}).get("chunk_seconds", 1800))
+    print(f"video {vw}x{vh} scale={scale:.3f} chunk={chunk_seconds}s", file=sys.stderr)
+
+    chunks = []
+    t = seg_start
+    while t < seg_end:
+        chunks.append((t, min(t + chunk_seconds, seg_end)))
+        t += chunk_seconds
+    # 端数チャンクが5分未満なら前と併合
+    if len(chunks) >= 2 and (chunks[-1][1] - chunks[-1][0]) < 300:
+        chunks[-2] = (chunks[-2][0], chunks[-1][1])
+        chunks.pop()
+
+    parts = []
+    for ci, (cs, ce) in enumerate(chunks):
+        cdir = f"{strips_dir}_c{ci}"
+        manifest = strip_render.build_for_segment(
+            chat_jsonl, cs, ce, font_path, emote_dir, cdir,
+            scale=scale, cfg=cfg, emoji_font_path=emoji_font_path)
+        part = f"chunk_{ci:03d}.mp4"
+        _encode_chunk(vod, cs, ce - cs, manifest, cdir, vw, preset, crf, part)
+        parts.append(part)
+        import shutil as _sh
+        _sh.rmtree(cdir, ignore_errors=True)
+
+    if len(parts) == 1:
+        Path(parts[0]).replace(out)
+    else:
+        lst = Path("chunks.txt")
+        lst.write_text("".join(f"file '{p}'\n" for p in parts), encoding="utf-8")
+        run(["ffmpeg", "-y", "-hide_banner", "-loglevel", "warning",
+             "-f", "concat", "-safe", "0", "-i", str(lst),
+             "-c", "copy", "-movflags", "+faststart", out])
+        for p in parts:
+            Path(p).unlink(missing_ok=True)
 
 
 def main():
