@@ -131,8 +131,8 @@ def main():
     seg_emotes = outdir / "emotes"
     seg_emotes.mkdir(exist_ok=True)
     for eid in ids:
-        src = Path("emotes") / f"{eid}.png"
-        if src.exists():
+        src = emotes_mod.find_file("emotes", eid)
+        if src:
             shutil.copy2(src, seg_emotes / src.name)
     if added:
         try:

@@ -22,5 +22,12 @@
   "backlog": true,
   "daily_upload_limit": 6,
   "max_inflight": 3,
-  "dispatch_batch": 2
+  "dispatch_batch": 2,
+  "danmaku": {
+    "speed": 150,
+    "font_px": 60,
+    "emote_px": 64,
+    "gif_phases": 4,
+    "gif_phase_fps": 5
+  }
 }

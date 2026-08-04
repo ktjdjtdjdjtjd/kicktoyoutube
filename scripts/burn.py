@@ -60,28 +60,43 @@ def probe_dims(path):
 
 
 def burn_segment(vod, chat_jsonl, seg_start, seg_end, out, preset, crf,
-                 font_path, emote_dir, strips_dir="strips"):
+                 font_path, emote_dir, strips_dir="strips", cfg=None,
+                 emoji_font_path=None):
     dur = seg_end - seg_start
     vw, vh = probe_dims(vod)
     scale = vh / 1080.0
     print(f"video {vw}x{vh} scale={scale:.3f}", file=sys.stderr)
     manifest = strip_render.build_for_segment(
-        chat_jsonl, seg_start, seg_end, font_path, emote_dir, strips_dir, scale=scale)
+        chat_jsonl, seg_start, seg_end, font_path, emote_dir, strips_dir,
+        scale=scale, cfg=cfg, emoji_font_path=emoji_font_path)
     strips = manifest["strips"]
     lm = manifest["left_margin"]
     speed = manifest["speed"]
+    pfps = manifest.get("gif_phase_fps", 5)
 
     cmd = ["ffmpeg", "-y", "-hide_banner", "-loglevel", "warning", "-stats",
            "-ss", f"{seg_start:.3f}", "-t", f"{dur:.3f}", "-i", vod]
+    entries = []  # (input_index, y, enable_expr or None)
+    idx = 1
     for s in strips:
-        cmd += ["-i", str(Path(strips_dir) / s["file"])]
-    if strips:
+        files = s["files"]
+        k_total = len(files)
+        for k, fname in enumerate(files):
+            cmd += ["-i", str(Path(strips_dir) / fname)]
+            enable = None
+            if k_total > 1:
+                enable = f"eq(mod(floor(t*{pfps})\\,{k_total})\\,{k})"
+            entries.append((idx, s["y"], enable))
+            idx += 1
+    if entries:
         chains = []
         prev = "[0:v]"
-        for i, s in enumerate(strips):
-            lbl = f"[v{i+1}]"
-            chains.append(
-                f"{prev}[{i+1}:v]overlay=x={vw}-{lm}-t*{speed}:y={s['y']}:eof_action=repeat{lbl}")
+        for n, (i, y, enable) in enumerate(entries):
+            lbl = f"[v{n+1}]"
+            opts = f"x={vw}-{lm}-t*{speed}:y={y}:eof_action=repeat"
+            if enable:
+                opts += f":enable='{enable}'"
+            chains.append(f"{prev}[{i}:v]overlay={opts}{lbl}")
             prev = lbl
         cmd += ["-filter_complex", ";".join(chains), "-map", prev]
     else:
@@ -106,6 +121,7 @@ def main():
     ap.add_argument("--emotes", default="out/emotes")
     ap.add_argument("--meta", default="out/meta.json", help="plan出力 (sourceのm3u8を使う)")
     ap.add_argument("--font", default="fonts/BIZUDPGothic-Regular.ttf")
+    ap.add_argument("--emoji-font", default="fonts/NotoColorEmoji.ttf")
     ap.add_argument("--out", default="seg.mp4")
     ap.add_argument("--config", default="config.json")
     ap.add_argument("--vod", default="vod.mp4", help="DL先 (既存ならDLスキップ)")
@@ -126,7 +142,7 @@ def main():
 
     burn_segment(a.vod, a.chat, a.seg_start, a.seg_end, a.out,
                  cfg.get("encode_preset", "veryfast"), str(cfg.get("encode_crf", "23")),
-                 a.font, a.emotes)
+                 a.font, a.emotes, cfg=cfg, emoji_font_path=a.emoji_font)
     print(f"done: {a.out}")
 
 

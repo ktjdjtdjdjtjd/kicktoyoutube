@@ -36,22 +36,27 @@ def collect_ids(messages):
     return ids
 
 
-def normalize_png(raw, px=EMOTE_PX):
-    """PNG/GIFバイト列 -> px×px 透過PNGバイト列 (GIFは先頭フレーム)。"""
+def find_file(emote_dir, eid):
+    """蓄積ディレクトリから <id>.gif / <id>.png を探す。無ければ None。"""
+    for ext in ("gif", "png"):
+        p = Path(emote_dir) / f"{eid}.{ext}"
+        if p.exists():
+            return p
+    return None
+
+
+def to_png_bytes(raw):
+    """PNG/GIF以外(webp等)のバイト列をPNGへ変換。"""
     from PIL import Image
-    im = Image.open(io.BytesIO(raw))
-    im.seek(0)
-    im = im.convert("RGBA")
-    im.thumbnail((px, px), Image.LANCZOS)
-    canvas = Image.new("RGBA", (px, px), (0, 0, 0, 0))
-    canvas.paste(im, ((px - im.width) // 2, (px - im.height) // 2))
+    im = Image.open(io.BytesIO(raw)).convert("RGBA")
     out = io.BytesIO()
-    canvas.save(out, "PNG")
+    im.save(out, "PNG")
     return out.getvalue()
 
 
 def download_missing(ids, emote_dir, session=None):
-    """未取得のエモートをDLして emote_dir に保存。新規保存したPathのリストを返す。"""
+    """未取得のエモートを原本のままDLして蓄積 (GIFはアニメ保持のため<id>.gif)。
+    新規保存したPathのリストを返す。"""
     emote_dir = Path(emote_dir)
     emote_dir.mkdir(parents=True, exist_ok=True)
     if session is None:
@@ -59,18 +64,26 @@ def download_missing(ids, emote_dir, session=None):
         session = cffi_requests.Session(impersonate="chrome")
     added = []
     for eid in sorted(ids):
-        dest = emote_dir / f"{eid}.png"
-        if dest.exists():
+        if find_file(emote_dir, eid):
             continue
         try:
             r = session.get(EMOTE_URL.format(id=eid), timeout=20)
             if r.status_code != 200:
                 print(f"emote {eid}: HTTP {r.status_code} — skip", file=sys.stderr)
                 continue
-            dest.write_bytes(normalize_png(r.content))
+            raw = r.content
+            if raw[:6] in (b"GIF87a", b"GIF89a"):
+                dest = emote_dir / f"{eid}.gif"
+                dest.write_bytes(raw)
+            elif raw[:8] == b"\x89PNG\r\n\x1a\n":
+                dest = emote_dir / f"{eid}.png"
+                dest.write_bytes(raw)
+            else:
+                dest = emote_dir / f"{eid}.png"
+                dest.write_bytes(to_png_bytes(raw))
             added.append(dest)
         except Exception as e:
             print(f"emote {eid}: {e} — skip", file=sys.stderr)
-    print(f"emotes: {len(added)} downloaded, dir total {len(list(emote_dir.glob('*.png')))}",
-          file=sys.stderr)
+    total = len(list(Path(emote_dir).glob("*.png"))) + len(list(Path(emote_dir).glob("*.gif")))
+    print(f"emotes: {len(added)} downloaded, dir total {total}", file=sys.stderr)
     return added
