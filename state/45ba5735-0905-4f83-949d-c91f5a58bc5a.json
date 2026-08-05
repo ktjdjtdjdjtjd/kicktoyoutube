@@ -4,7 +4,9 @@
   "title": "緊急で花火を観に仙台にきたぞ",
   "start_time": "2026-08-05 06:42:37",
   "duration_s": 26486.0,
-  "status": "dispatched",
+  "status": "done",
   "retries": 0,
-  "dispatched_at": "2026-08-05T15:37:44.301132+00:00"
+  "dispatched_at": "2026-08-05T15:37:44.301132+00:00",
+  "updated_at": "2026-08-05T17:32:29.533009+00:00",
+  "yt_url": "https://www.youtube.com/watch?v=DDSHbvJhmZk"
 }
