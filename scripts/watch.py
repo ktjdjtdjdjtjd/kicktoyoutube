@@ -24,7 +24,7 @@ from chat_fetch import parse_dt
 from repo_state import STATE_DIR, commit_state
 
 PT = ZoneInfo("America/Los_Angeles")
-STALE_HOURS = 24
+STALE_HOURS = 12
 
 
 def load_states():

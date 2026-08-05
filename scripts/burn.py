@@ -59,8 +59,21 @@ def probe_dims(path):
     return int(w), int(h)
 
 
+def log_mem(tag):
+    try:
+        info = {}
+        for line in open("/proc/meminfo"):
+            k, v = line.split(":", 1)
+            info[k] = v.strip()
+        print(f"mem[{tag}]: total={info.get('MemTotal')} avail={info.get('MemAvailable')}",
+              file=sys.stderr)
+    except Exception:
+        pass
+
+
 def _encode_chunk(vod, chunk_start, chunk_dur, manifest, strips_dir, vw,
                   preset, crf, out):
+    log_mem("before-encode")
     strips = manifest["strips"]
     lm = manifest["left_margin"]
     speed = manifest["speed"]
