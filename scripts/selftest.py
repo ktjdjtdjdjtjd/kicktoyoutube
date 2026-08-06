@@ -176,6 +176,33 @@ def test_thumbnail():
             check("thumb: date plate bottom-right", sum(corner) < 200, f"({corner})")
 
 
+def test_chapters_logic():
+    import chapters
+    check("ch: hms", chapters.hms(3725) == "1:02:05" and chapters.hms(65) == "1:05")
+    check("ch: parse_ts", chapters.parse_ts("1:02:05") == 3725 and chapters.parse_ts("0:00") == 0)
+    raw = """はい、チャプターです。
+0:00 配信開始
+0:05:00 コンビニへ移動
+0:05:30 近すぎる章
+1:20:00 ラーメン実食
+9:99 壊れた行
+2:00:00 これは尺の外
+"""
+    ch = chapters.validate_chapters(raw, 6000)
+    check("ch: validated", [c[1] for c in ch] == ["配信開始", "コンビニへ移動", "ラーメン実食"],
+          f"({ch})")
+    ch2 = chapters.validate_chapters("2:00 いきなり途中から", 6000)
+    check("ch: 0:00 auto-prepended", ch2[0] == (0, "配信開始"))
+    desc = "はしもと君のKICK配信の録画アーカイブです。\n\nタイムスタンプ▽\n\n\n元配信▽\nタイトル\nhttps://x\n\n#タグ"
+    new = chapters.inject_description(desc, [(0, "配信開始"), (300, "移動")])
+    check("ch: inject keeps head/tail",
+          new.startswith("はしもと君の") and "0:00 配信開始\n5:00 移動" in new
+          and "元配信▽\nタイトル" in new and new.rstrip().endswith("#タグ"))
+    # 再実行しても二重にならない
+    new2 = chapters.inject_description(new, [(0, "配信開始"), (600, "別の章")])
+    check("ch: inject idempotent", "5:00 移動" not in new2 and "10:00 別の章" in new2)
+
+
 def test_mark_done_import():
     import mark_done  # noqa: F401  (curl_cffi非依存であること)
     check("mark_done: importable without curl_cffi deps", True)
@@ -188,6 +215,7 @@ def main():
     test_templates()
     test_yt_title_sanitize()
     test_thumbnail()
+    test_chapters_logic()
     test_mark_done_import()
     if FAILED:
         print(f"\n{len(FAILED)} FAILED: {FAILED}")

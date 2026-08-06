@@ -30,5 +30,10 @@
     "gif_phases": 4,
     "gif_phase_fps": 5,
     "chunk_seconds": 900
+  },
+  "chapters": {
+    "enabled": true,
+    "model": "gemini-2.5-flash",
+    "whisper_model": "small"
   }
 }
