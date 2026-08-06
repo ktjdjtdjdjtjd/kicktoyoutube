@@ -90,12 +90,20 @@ def _upload_once(creds, path, title, description, tags, category_id, privacy):
     return response
 
 
+def set_thumbnail(creds, video_id, thumb_path):
+    """カスタムサムネ設定 (要チャンネル認証)。失敗しても致命傷にしない。"""
+    youtube = build("youtube", "v3", credentials=creds)
+    media = MediaFileUpload(str(thumb_path), mimetype="image/jpeg", resumable=False)
+    youtube.thumbnails().set(videoId=video_id, media_body=media).execute()
+
+
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("video")
     ap.add_argument("--meta", default="out/meta.json")
     ap.add_argument("--config", default="config.json")
     ap.add_argument("--privacy", default="", help="config の privacy を上書き")
+    ap.add_argument("--thumb", default="", help="サムネJPEG (あれば設定)")
     a = ap.parse_args()
     meta = json.loads(Path(a.meta).read_text(encoding="utf-8"))
     cfg = json.loads(Path(a.config).read_text(encoding="utf-8"))
@@ -116,6 +124,12 @@ def main():
     resp = upload(creds, a.video, title, description,
                   cfg.get("tags", []), cfg.get("category_id", "24"), privacy)
     vid = resp.get("id")
+    if a.thumb and Path(a.thumb).exists():
+        try:
+            set_thumbnail(creds, vid, a.thumb)
+            print("thumbnail set", file=sys.stderr)
+        except Exception as e:
+            print(f"thumbnail skipped: {e}", file=sys.stderr)
     out = {"id": vid, "url": f"https://www.youtube.com/watch?v={vid}", "title": title}
     print(json.dumps(out, ensure_ascii=False))
     gh_out = os.environ.get("GITHUB_OUTPUT")

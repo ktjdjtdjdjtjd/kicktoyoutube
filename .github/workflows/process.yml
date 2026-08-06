@@ -117,9 +117,17 @@ jobs:
       - uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065  # v5
         with:
           python-version: "3.12"
-      - run: pip install --quiet google-auth==2.53.0 google-auth-httplib2==0.3.1 google-api-python-client==2.194.0
+      - run: pip install --quiet google-auth==2.53.0 google-auth-httplib2==0.3.1 google-api-python-client==2.194.0 curl_cffi==0.14.0 pillow==12.2.0
       - name: Install ffmpeg (ubuntu-24.04ランナーは未搭載)
         run: sudo apt-get update -qq && sudo apt-get install -y -qq ffmpeg
+      - name: Fetch font for thumbnail (pinned, verified)
+        run: |
+          mkdir -p fonts
+          curl -fsSL -o fonts/BIZUDPGothic-Regular.ttf "$FONT_URL"
+          got=$(git hash-object fonts/BIZUDPGothic-Regular.ttf)
+          if [ "$got" != "$FONT_BLOB_SHA" ]; then
+            echo "font hash mismatch: $got"; exit 1
+          fi
       - name: Free disk space (セグメント合計+結合後で2倍の容量が要る)
         run: sudo rm -rf /usr/share/dotnet /usr/local/lib/android /opt/ghc /usr/local/.ghcup /opt/hostedtoolcache/CodeQL 2>/dev/null || true
       - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093  # v4
@@ -132,13 +140,19 @@ jobs:
           path: segs
       - name: Concat + verify
         run: PYTHONPATH=scripts python scripts/assemble.py --meta out/meta.json --segdir segs --out final.mp4
+      - name: Generate thumbnail (盛り上がりピークのフレーム+タイトル+配信日)
+        run: |
+          PYTHONPATH=scripts python scripts/thumbnail.py \
+            --meta out/meta.json --chat out/chat.jsonl \
+            --font fonts/BIZUDPGothic-Regular.ttf \
+            --out thumb.jpg --fallback-video final.mp4 || echo "thumbnail generation failed — continue without"
       - name: Upload to YouTube
         id: upload
         env:
           YT_TOKEN_JSON: ${{ secrets.YT_TOKEN_JSON }}
         run: |
           PYTHONPATH=scripts python scripts/yt_upload.py final.mp4 \
-            --meta out/meta.json --privacy "${{ inputs.privacy }}"
+            --meta out/meta.json --privacy "${{ inputs.privacy }}" --thumb thumb.jpg
       - name: Mark done
         run: |
           PYTHONPATH=scripts python scripts/mark_done.py "${{ inputs.uuid }}" \

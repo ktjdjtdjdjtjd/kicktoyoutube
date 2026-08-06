@@ -148,6 +148,33 @@ def test_yt_title_sanitize():
     check("yt: 100char truncated", len(sanitize_title("あ" * 200)) == 95)
 
 
+def test_thumbnail():
+    font_path = find_font()
+    if not font_path:
+        check("thumb: font available", False)
+        return
+    import thumbnail
+    from PIL import Image
+    with tempfile.TemporaryDirectory() as d:
+        d = Path(d)
+        chat = d / "chat.jsonl"
+        rows = [{"rel": 400 + i * 0.5, "content": "w"} for i in range(100)]
+        rows += [{"rel": 1000 + i * 10, "content": "x"} for i in range(5)]
+        chat.write_text("\n".join(json.dumps(r) for r in rows), encoding="utf-8")
+        peak = thumbnail.find_hype_peak(chat, 3600)
+        check("thumb: peak in dense window", 390 <= peak <= 480, f"(peak={peak})")
+        frame = d / "f.png"
+        Image.new("RGB", (1280, 720), (30, 60, 90)).save(frame)
+        out = d / "t.jpg"
+        thumbnail.compose(str(frame), "テストタイトル" * 6, "2026/08/01", font_path, str(out))
+        check("thumb: output exists", out.exists() and out.stat().st_size > 10000)
+        with Image.open(out) as im:
+            check("thumb: 1280x720", im.size == (1280, 720))
+            px = im.convert("RGB").load()
+            corner = px[1280 - 60, 720 - 60]
+            check("thumb: date plate bottom-right", sum(corner) < 350, f"({corner})")
+
+
 def test_mark_done_import():
     import mark_done  # noqa: F401  (curl_cffi非依存であること)
     check("mark_done: importable without curl_cffi deps", True)
@@ -159,6 +186,7 @@ def main():
     test_layout_and_render()
     test_templates()
     test_yt_title_sanitize()
+    test_thumbnail()
     test_mark_done_import()
     if FAILED:
         print(f"\n{len(FAILED)} FAILED: {FAILED}")
