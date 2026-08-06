@@ -109,6 +109,10 @@ def transcribe(path, model_size="small"):
     return lines, info.duration
 
 
+MODEL_FALLBACKS = ["gemini-2.5-flash", "gemini-2.0-flash", "gemini-1.5-flash",
+                   "gemini-flash-latest"]
+
+
 def gemini_chapters(lines, api_key, model):
     transcript = "\n".join(f"[{hms(t)}] {txt}" for t, txt in lines)
     if len(transcript) > 900_000:
@@ -117,12 +121,24 @@ def gemini_chapters(lines, api_key, model):
         "contents": [{"parts": [{"text": PROMPT.format(transcript=transcript)}]}],
         "generationConfig": {"temperature": 0.2},
     }).encode()
-    req = urllib.request.Request(
-        GEMINI_URL.format(model=model, key=api_key), data=body,
-        headers={"Content-Type": "application/json"})
-    with urllib.request.urlopen(req, timeout=300) as r:
-        resp = json.loads(r.read())
-    return resp["candidates"][0]["content"]["parts"][0]["text"]
+    models = [model] + [m for m in MODEL_FALLBACKS if m != model]
+    last_err = None
+    for m in models:
+        req = urllib.request.Request(
+            GEMINI_URL.format(model=m, key=api_key), data=body,
+            headers={"Content-Type": "application/json"})
+        try:
+            with urllib.request.urlopen(req, timeout=300) as r:
+                resp = json.loads(r.read())
+            print(f"gemini model: {m}", file=sys.stderr)
+            return resp["candidates"][0]["content"]["parts"][0]["text"]
+        except urllib.error.HTTPError as e:
+            print(f"gemini {m}: HTTP {e.code}", file=sys.stderr)
+            last_err = e
+            if e.code in (404, 400):
+                continue  # モデル名が無い → 次候補
+            raise
+    raise last_err
 
 
 def validate_chapters(raw, duration_s):
