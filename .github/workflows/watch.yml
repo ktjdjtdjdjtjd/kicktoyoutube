@@ -3,6 +3,12 @@ on:
   schedule:
     - cron: "*/15 * * * *"
   workflow_dispatch:
+  # cronはGitHub側で大きく間引かれる(実測1〜12時間)ため、state更新(=処理完了や投入)を
+  # 引き金に自走させる。dispatchするものが無ければ何もコミットせず連鎖は止まる
+  push:
+    paths:
+      - "state/**"
+      - "config.json"
 
 permissions:
   contents: write
