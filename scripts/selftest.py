@@ -216,6 +216,20 @@ def test_chapters_logic():
     check("ch: inject idempotent", "5:00 移動" not in new2 and "10:00 別の章" in new2)
 
 
+def test_watch_stale_logic():
+    from datetime import datetime, timedelta, timezone
+    import watch
+    now = datetime.now(timezone.utc)
+    fresh = now - timedelta(hours=1)
+    mid = now - timedelta(hours=3)
+    old = now - timedelta(hours=13)
+    check("stale: fresh never", not watch.dispatched_is_stale(fresh, now, False))
+    check("stale: 3h + idle -> stale", watch.dispatched_is_stale(mid, now, False))
+    check("stale: 3h + busy -> not", not watch.dispatched_is_stale(mid, now, True))
+    check("stale: 3h + unknown -> not", not watch.dispatched_is_stale(mid, now, None))
+    check("stale: 13h always", watch.dispatched_is_stale(old, now, None))
+
+
 def test_mark_done_import():
     import mark_done  # noqa: F401  (curl_cffi非依存であること)
     check("mark_done: importable without curl_cffi deps", True)
@@ -229,6 +243,7 @@ def main():
     test_yt_title_sanitize()
     test_thumbnail()
     test_chapters_logic()
+    test_watch_stale_logic()
     test_mark_done_import()
     if FAILED:
         print(f"\n{len(FAILED)} FAILED: {FAILED}")

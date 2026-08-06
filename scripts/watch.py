@@ -13,8 +13,10 @@
 """
 import argparse
 import json
+import os
 import subprocess
 import sys
+import urllib.request
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from zoneinfo import ZoneInfo
@@ -24,7 +26,40 @@ from chat_fetch import parse_dt
 from repo_state import STATE_DIR, commit_state
 
 PT = ZoneInfo("America/Los_Angeles")
-STALE_HOURS = 12
+STALE_HOURS = 12       # 通常の失敗リトライ待ち
+QUICK_STALE_HOURS = 2  # 処理が1本も動いていない場合の短縮リトライ待ち (障害復帰の高速化)
+
+
+def repo_has_active_process_runs():
+    """processのqueued/in_progressが存在するか。判定不能ならNone(保守的に12h側)。"""
+    tok = os.environ.get("GH_TOKEN", "")
+    repo = os.environ.get("GITHUB_REPOSITORY", "")
+    if not tok or not repo:
+        return None
+    try:
+        req = urllib.request.Request(
+            f"https://api.github.com/repos/{repo}/actions/runs?per_page=30",
+            headers={"Authorization": f"Bearer {tok}",
+                     "Accept": "application/vnd.github+json",
+                     "User-Agent": "kick-archive-watch"})
+        d = json.loads(urllib.request.urlopen(req, timeout=20).read())
+        for r in d.get("workflow_runs", []):
+            if r.get("name") == "process" and r.get("status") in ("queued", "in_progress"):
+                return True
+        return False
+    except Exception as e:
+        print(f"active-runs check failed: {e}", file=sys.stderr)
+        return None
+
+
+def dispatched_is_stale(ts, now, active_runs):
+    """dispatched状態の再投入判定。activeが確実にFalseなら2h、それ以外は12h。"""
+    if ts is None:
+        return True
+    age = now - ts
+    if active_runs is False and age > timedelta(hours=QUICK_STALE_HOURS):
+        return True
+    return age > timedelta(hours=STALE_HOURS)
 
 
 def load_states():
@@ -55,7 +90,7 @@ def latest_ts(st):
     return best
 
 
-def pick_dispatches(videos, states, cfg, now):
+def pick_dispatches(videos, states, cfg, now, active_runs=None):
     """[(slug付きvod情報)] を古い順に、ペース制御の範囲で返す。"""
     backlog = cfg.get("backlog", False)
     max_age = timedelta(days=cfg.get("max_vod_age_days", 3))
@@ -72,7 +107,7 @@ def pick_dispatches(videos, states, cfg, now):
         status = str(st.get("status", ""))
         ts = latest_ts(st)
         if status.startswith("dispatched"):
-            if ts and (now - ts) < timedelta(hours=STALE_HOURS):
+            if not dispatched_is_stale(ts, now, active_runs):
                 inflight += 1
         if status.startswith(("dispatched", "done")):
             if ts and ts.astimezone(PT).date() == today_pt:
@@ -104,9 +139,9 @@ def pick_dispatches(videos, states, cfg, now):
             ts = latest_ts(st)
             if status.startswith(("done", "skipped")):
                 continue
-            if status.startswith("dispatched") and ts and (now - ts) < timedelta(hours=STALE_HOURS):
+            if status.startswith("dispatched") and not dispatched_is_stale(ts, now, active_runs):
                 continue  # 処理中
-            # dispatchedのまま24h超 = 失敗run → 再投入対象
+            # staleなdispatched = 失敗run → 再投入対象
         candidates.append({
             "slug": v["_slug"],
             "uuid": uuid,
@@ -141,7 +176,9 @@ def main():
             v["_slug"] = slug
         videos.extend(vs)
 
-    picks = pick_dispatches(videos, load_states(), cfg, now)
+    active = repo_has_active_process_runs()
+    print(f"active process runs: {active}", file=sys.stderr)
+    picks = pick_dispatches(videos, load_states(), cfg, now, active_runs=active)
     if not picks:
         print("nothing to dispatch")
         return
