@@ -171,8 +171,9 @@ def test_thumbnail():
         with Image.open(out) as im:
             check("thumb: 1280x720", im.size == (1280, 720))
             px = im.convert("RGB").load()
-            corner = px[1280 - 60, 720 - 60]
-            check("thumb: date plate bottom-right", sum(corner) < 350, f"({corner})")
+            # 座布団のパディング部 (文字に当たらない右下端寄り) を見る
+            corner = px[1280 - 34, 720 - 34]
+            check("thumb: date plate bottom-right", sum(corner) < 200, f"({corner})")
 
 
 def test_mark_done_import():
