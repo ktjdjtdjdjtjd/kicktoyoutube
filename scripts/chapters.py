@@ -113,10 +113,30 @@ MODEL_FALLBACKS = ["gemini-2.5-flash", "gemini-2.0-flash", "gemini-1.5-flash",
                    "gemini-flash-latest"]
 
 
+def bucketize(lines, bucket=60, max_chars=120):
+    """文字起こしを bucket 秒単位に統合し、各行 max_chars に切り詰める。
+    無料枠のトークン上限対策 (章検出にはこの粒度で十分)。"""
+    out = []
+    cur_start = None
+    cur_text = []
+    for t, txt in lines:
+        b = int(t // bucket) * bucket
+        if cur_start is None or b != cur_start:
+            if cur_start is not None and cur_text:
+                out.append((cur_start, " ".join(cur_text)[:max_chars]))
+            cur_start = b
+            cur_text = []
+        cur_text.append(txt)
+    if cur_start is not None and cur_text:
+        out.append((cur_start, " ".join(cur_text)[:max_chars]))
+    return out
+
+
 def gemini_chapters(lines, api_key, model):
-    transcript = "\n".join(f"[{hms(t)}] {txt}" for t, txt in lines)
-    if len(transcript) > 900_000:
-        transcript = transcript[:900_000]
+    compact = bucketize(lines)
+    transcript = "\n".join(f"[{hms(t)}] {txt}" for t, txt in compact)
+    print(f"transcript for gemini: {len(compact)} lines, {len(transcript)} chars",
+          file=sys.stderr)
     body = json.dumps({
         "contents": [{"parts": [{"text": PROMPT.format(transcript=transcript)}]}],
         "generationConfig": {"temperature": 0.2},
@@ -124,20 +144,23 @@ def gemini_chapters(lines, api_key, model):
     models = [model] + [m for m in MODEL_FALLBACKS if m != model]
     last_err = None
     for m in models:
-        req = urllib.request.Request(
-            GEMINI_URL.format(model=m, key=api_key), data=body,
-            headers={"Content-Type": "application/json"})
-        try:
-            with urllib.request.urlopen(req, timeout=300) as r:
-                resp = json.loads(r.read())
-            print(f"gemini model: {m}", file=sys.stderr)
-            return resp["candidates"][0]["content"]["parts"][0]["text"]
-        except urllib.error.HTTPError as e:
-            print(f"gemini {m}: HTTP {e.code}", file=sys.stderr)
-            last_err = e
-            if e.code in (404, 400):
-                continue  # モデル名が無い → 次候補
-            raise
+        for attempt in range(1, 4):
+            req = urllib.request.Request(
+                GEMINI_URL.format(model=m, key=api_key), data=body,
+                headers={"Content-Type": "application/json"})
+            try:
+                with urllib.request.urlopen(req, timeout=300) as r:
+                    resp = json.loads(r.read())
+                print(f"gemini model: {m}", file=sys.stderr)
+                return resp["candidates"][0]["content"]["parts"][0]["text"]
+            except urllib.error.HTTPError as e:
+                print(f"gemini {m}: HTTP {e.code} (attempt {attempt})", file=sys.stderr)
+                last_err = e
+                if e.code == 429 and attempt < 3:
+                    import time
+                    time.sleep(75)
+                    continue
+                break  # 404/400等 → 次のモデル候補へ
     raise last_err
 
 

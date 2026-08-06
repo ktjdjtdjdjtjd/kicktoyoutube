@@ -193,6 +193,10 @@ def test_chapters_logic():
           f"({ch})")
     ch2 = chapters.validate_chapters("2:00 いきなり途中から", 6000)
     check("ch: 0:00 auto-prepended", ch2[0] == (0, "配信開始"))
+    b = chapters.bucketize([(0, "あ"), (10, "い"), (65, "う"), (66, "え" * 200)],
+                           bucket=60, max_chars=50)
+    check("ch: bucketize merge+cap", b[0] == (0, "あ い") and b[1][0] == 60
+          and len(b[1][1]) == 50, f"({b})")
     desc = "はしもと君のKICK配信の録画アーカイブです。\n\nタイムスタンプ▽\n\n\n元配信▽\nタイトル\nhttps://x\n\n#タグ"
     new = chapters.inject_description(desc, [(0, "配信開始"), (300, "移動")])
     check("ch: inject keeps head/tail",
