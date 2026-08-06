@@ -143,9 +143,18 @@ def test_templates():
 
 
 def test_yt_title_sanitize():
-    from yt_upload import sanitize_title
+    from yt_upload import sanitize_title, channel_settings
     check("yt: angle brackets replaced", sanitize_title("a<b>c") == "a＜b＞c")
     check("yt: 100char truncated", len(sanitize_title("あ" * 200)) == 95)
+    cfg = json.loads((Path(__file__).parent.parent / "config.json").read_text(encoding="utf-8"))
+    cs = channel_settings(cfg, "220ninimaru")
+    check("yt: ninimaru settings", cs["yt_token_env"] == "YT_TOKEN_JSON_NINIMARU"
+          and "ににまる" in cs["title_template"])
+    cs2 = channel_settings(cfg, "hashimotokun78")
+    check("yt: hashimoto settings", cs2["yt_token_env"] == "YT_TOKEN_JSON"
+          and "はしもと君" in cs2["title_template"])
+    cs3 = channel_settings(cfg, "unknown_channel")
+    check("yt: unknown falls back", cs3["yt_token_env"] == "YT_TOKEN_JSON")
 
 
 def test_thumbnail():

@@ -200,11 +200,11 @@ def inject_description(desc, chapters):
     return f"{desc}\n\n{head_marker}\n{block}"
 
 
-def update_youtube_description(video_id, chapters):
+def update_youtube_description(video_id, chapters, token_env="YT_TOKEN_JSON"):
     from google.auth.transport.requests import Request
     from google.oauth2.credentials import Credentials
     from googleapiclient.discovery import build
-    info = json.loads(os.environ["YT_TOKEN_JSON"])
+    info = json.loads(os.environ[token_env])
     creds = Credentials.from_authorized_user_info(
         info, ["https://www.googleapis.com/auth/youtube.force-ssl"])
     if not creds.valid:
@@ -277,7 +277,9 @@ def main():
         print("dry-run: not updating")
         return
     video_id = st["yt_url"].split("v=")[-1]
-    update_youtube_description(video_id, chapters)
+    token_env = ((cfg.get("channel_settings") or {}).get(st["slug"], {})
+                 .get("yt_token_env", "YT_TOKEN_JSON"))
+    update_youtube_description(video_id, chapters, token_env)
     mark("done", {"n": len(chapters)})
     print("description updated")
 

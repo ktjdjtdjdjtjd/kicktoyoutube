@@ -27,10 +27,21 @@ def sanitize_title(t):
     return t[:95] if len(t) > 95 else t
 
 
-def get_credentials():
-    raw = os.environ.get("YT_TOKEN_JSON", "")
+def channel_settings(cfg, slug):
+    """Kickチャンネルごとの投稿設定 (未定義はトップレベル値へフォールバック)。"""
+    cs = (cfg.get("channel_settings") or {}).get(slug, {})
+    return {
+        "yt_token_env": cs.get("yt_token_env", "YT_TOKEN_JSON"),
+        "title_template": cs.get("title_template", cfg["title_template"]),
+        "description_template": cs.get("description_template", cfg["description_template"]),
+        "tags": cs.get("tags", cfg.get("tags", [])),
+    }
+
+
+def get_credentials(env_name="YT_TOKEN_JSON"):
+    raw = os.environ.get(env_name, "")
     if not raw.strip():
-        sys.exit("error: env YT_TOKEN_JSON is empty — set repo secret")
+        sys.exit(f"error: env {env_name} is empty — set repo secret")
     info = json.loads(raw)
     creds = Credentials.from_authorized_user_info(info, SCOPES)
     if not creds.valid:
@@ -115,14 +126,16 @@ def main():
         "channel": meta["slug"],
         "url": meta["url"],
     }
-    title = sanitize_title(cfg["title_template"].format(**fields))
-    description = cfg["description_template"].format(**fields)
+    cs = channel_settings(cfg, meta["slug"])
+    title = sanitize_title(cs["title_template"].format(**fields))
+    description = cs["description_template"].format(**fields)
     privacy = a.privacy or cfg.get("privacy", "unlisted")
 
-    creds = get_credentials()
-    print(f"uploading: {a.video}\n  title: {title}\n  privacy: {privacy}", file=sys.stderr)
+    creds = get_credentials(cs["yt_token_env"])
+    print(f"uploading: {a.video}\n  title: {title}\n  privacy: {privacy}\n"
+          f"  token: {cs['yt_token_env']}", file=sys.stderr)
     resp = upload(creds, a.video, title, description,
-                  cfg.get("tags", []), cfg.get("category_id", "24"), privacy)
+                  cs["tags"], cfg.get("category_id", "24"), privacy)
     vid = resp.get("id")
     if a.thumb and Path(a.thumb).exists():
         try:
