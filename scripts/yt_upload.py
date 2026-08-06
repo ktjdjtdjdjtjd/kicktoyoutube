@@ -43,7 +43,9 @@ def get_credentials(env_name="YT_TOKEN_JSON"):
     if not raw.strip():
         sys.exit(f"error: env {env_name} is empty — set repo secret")
     info = json.loads(raw)
-    creds = Credentials.from_authorized_user_info(info, SCOPES)
+    # scopesはトークンに記録された付与済みスコープをそのまま使う
+    # (固定リストで上書きすると付与外スコープ要求扱いになり invalid_scope で更新失敗する)
+    creds = Credentials.from_authorized_user_info(info)
     if not creds.valid:
         if not creds.refresh_token:
             sys.exit("error: token has no refresh_token")

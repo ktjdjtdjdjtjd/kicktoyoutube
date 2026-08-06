@@ -205,8 +205,7 @@ def update_youtube_description(video_id, chapters, token_env="YT_TOKEN_JSON"):
     from google.oauth2.credentials import Credentials
     from googleapiclient.discovery import build
     info = json.loads(os.environ[token_env])
-    creds = Credentials.from_authorized_user_info(
-        info, ["https://www.googleapis.com/auth/youtube.force-ssl"])
+    creds = Credentials.from_authorized_user_info(info)  # 付与済みスコープをそのまま使う
     if not creds.valid:
         creds.refresh(Request())
     youtube = build("youtube", "v3", credentials=creds)
