@@ -4,7 +4,9 @@
   "title": "大阪に帰ります",
   "start_time": "2026-07-15 03:01:21",
   "duration_s": 28754.0,
-  "status": "dispatched",
+  "status": "done",
   "retries": 1,
-  "dispatched_at": "2026-08-07T00:40:02.068007+00:00"
+  "dispatched_at": "2026-08-07T00:40:02.068007+00:00",
+  "updated_at": "2026-08-07T03:18:51.479088+00:00",
+  "yt_url": "https://www.youtube.com/watch?v=tHNvYGHFIW8"
 }
