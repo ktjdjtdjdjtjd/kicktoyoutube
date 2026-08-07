@@ -8,5 +8,10 @@
   "retries": 0,
   "dispatched_at": "2026-08-04T09:20:02.091416+00:00",
   "updated_at": "2026-08-04T10:49:16.857755+00:00",
-  "yt_url": "https://www.youtube.com/watch?v=-_eWK1I4mq4"
+  "yt_url": "https://www.youtube.com/watch?v=-_eWK1I4mq4",
+  "chapters": {
+    "result": "done",
+    "at": "2026-08-07T10:36:14.307404+00:00",
+    "n": 20
+  }
 }
