@@ -34,4 +34,6 @@ jobs:
           GH_TOKEN: ${{ github.token }}
         run: |
           cd $GITHUB_WORKSPACE
+          # cron起動はチェックアウトが古いことがある(並走レースで同一VOD二重投入の原因)
+          git fetch origin main && git checkout -B main origin/main
           PYTHONPATH=scripts python scripts/watch.py
