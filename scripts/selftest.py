@@ -183,6 +183,29 @@ def test_thumbnail():
             # 座布団のパディング部 (文字に当たらない右下端寄り) を見る
             corner = px[1280 - 34, 720 - 34]
             check("thumb: date plate bottom-right", sum(corner) < 200, f"({corner})")
+        # タイトル内の絵文字がカラーで描けること (豆腐回帰テスト)
+        emoji_font = find_emoji_font()
+        if emoji_font:
+            shaper, fit = thumbnail.fit_title("ニートの夏休み\U0001F349",
+                                              font_path, emoji_font, 1200)
+            check("thumb: emoji run kept",
+                  any(k == "j" for k, _ in shaper.split_runs(fit)))
+            em = thumbnail.render_emoji_opaque(shaper, "\U0001F349")
+            colorful = False
+            if em:
+                for x in range(0, em.width, 3):
+                    for y in range(0, em.height, 3):
+                        r, g, b, aa = em.getpixel((x, y))
+                        if aa > 200 and max(r, g, b) - min(r, g, b) > 60:
+                            colorful = True
+            check("thumb: emoji rendered in color", colorful)
+            out2 = d / "t2.jpg"
+            thumbnail.compose(str(frame), "ニートの夏休み\U0001F349", "2026/07/22",
+                              font_path, str(out2), emoji_font_path=emoji_font)
+            check("thumb: emoji compose ok",
+                  out2.exists() and out2.stat().st_size > 10000)
+        else:
+            check("thumb: emoji font present", False, "(NotoColorEmoji.ttf missing)")
 
 
 def test_chapters_logic():

@@ -16,8 +16,17 @@ from pathlib import Path
 
 from PIL import Image, ImageDraw, ImageFont
 
+from strip_render import EMOJI_RENDER_PX, TextShaper
+
 W, H = 1280, 720
 MARGIN = 24
+
+
+class _ShaperParams:
+    """TextShaper が参照する最小パラメータ (サムネはダンマク設定と無関係)。"""
+
+    def __init__(self, font_px):
+        self.font_px = font_px
 
 
 def find_hype_peak(chat_jsonl, duration_s, window=60, guard=300):
@@ -96,29 +105,66 @@ def fetch_frame_from_video(video_path, t_sec, out_png):
                     "-frames:v", "1", out_png], check=True)
 
 
-def fit_title_font(draw, title, font_path, max_width, start_px=92, min_px=48):
-    size = start_px
-    while size > min_px:
-        font = ImageFont.truetype(font_path, size)
-        if font.getlength(title) <= max_width:
-            return font, title
-        size -= 4
-    font = ImageFont.truetype(font_path, min_px)
-    while title and font.getlength(title + "…") > max_width:
-        title = title[:-1]
-    return font, (title + "…") if title else ""
+def title_width(shaper, title):
+    return sum(shaper.run_width(k, s) for k, s in shaper.split_runs(title))
 
 
-def compose(frame_png, title, date_slash, font_path, out_jpg):
+def fit_title(title, font_path, emoji_font_path, max_width, start_px=92, min_px=48):
+    """(shaper, 表示タイトル) を返す。絵文字混在幅で縮小→末尾…切り詰め。"""
+    ref = TextShaper(font_path, emoji_font_path, _ShaperParams(100))
+    w100 = title_width(ref, title)
+    size = int(100 * max_width / w100) if w100 > 0 else start_px
+    size = max(min_px, min(start_px, size))
+    limit100 = max_width * 100 / size  # 参照サイズ(100px)換算の幅上限
+    if title_width(ref, title) > limit100:
+        while title and title_width(ref, title + "…") > limit100:
+            title = title[:-1]
+        title = (title + "…") if title else ""
+    shaper = TextShaper(font_path, emoji_font_path, _ShaperParams(size))
+    return shaper, title
+
+
+def render_emoji_opaque(shaper, s):
+    """絵文字列 → タイトル用の不透明RGBA画像 (ダンマク用の減光は掛けない)。"""
+    if not shaper.emoji_font:
+        return None
+    w = max(1, int(shaper.emoji_font.getlength(s)) + 8)
+    im = Image.new("RGBA", (w, EMOJI_RENDER_PX + 20), (0, 0, 0, 0))
+    d = ImageDraw.Draw(im)
+    try:
+        d.text((0, 10), s, font=shaper.emoji_font, embedded_color=True)
+    except Exception:
+        return None
+    sc = shaper.emoji_scale
+    return im.resize((max(1, int(im.width * sc)), max(1, int(im.height * sc))),
+                     Image.LANCZOS)
+
+
+def draw_title_runs(im, draw, shaper, title, x, cy, stroke_w):
+    """BIZで描けない絵文字はNoto Color Emojiのビットマップを合成して描く。"""
+    for kind, s in shaper.split_runs(title):
+        if kind == "t":
+            draw.text((x, cy), s, font=shaper.font, anchor="lm",
+                      fill=(255, 255, 255), stroke_width=stroke_w,
+                      stroke_fill=(0, 0, 0))
+            x += shaper.font.getlength(s)
+        else:
+            em = render_emoji_opaque(shaper, s)
+            if em:
+                im.paste(em, (int(x), int(cy - em.height / 2)), em)
+            x += shaper.run_width(kind, s)
+
+
+def compose(frame_png, title, date_slash, font_path, out_jpg, emoji_font_path=""):
     im = Image.open(frame_png).convert("RGB").resize((W, H), Image.LANCZOS)
     draw = ImageDraw.Draw(im, "RGBA")
 
     # タイトル帯 (上部)
-    font_t, title_fit = fit_title_font(draw, title, font_path, W - 80)
-    band_h = font_t.size + 44
+    shaper, title_fit = fit_title(title, font_path, emoji_font_path, W - 80)
+    band_h = shaper.p.font_px + 44
     draw.rectangle([0, MARGIN, W, MARGIN + band_h], fill=(0, 0, 0, 150))
-    draw.text((40, MARGIN + band_h // 2), title_fit, font=font_t, anchor="lm",
-              fill=(255, 255, 255), stroke_width=6, stroke_fill=(0, 0, 0))
+    draw_title_runs(im, draw, shaper, title_fit, 40, MARGIN + band_h // 2,
+                    stroke_w=6)
 
     # 配信日 (右下)
     font_d = ImageFont.truetype(font_path, 56)
@@ -143,6 +189,7 @@ def main():
     ap.add_argument("--meta", default="out/meta.json")
     ap.add_argument("--chat", default="out/chat.jsonl")
     ap.add_argument("--font", default="fonts/BIZUDPGothic-Regular.ttf")
+    ap.add_argument("--emoji-font", default="fonts/NotoColorEmoji.ttf")
     ap.add_argument("--out", default="thumb.jpg")
     ap.add_argument("--fallback-video", default="")
     a = ap.parse_args()
@@ -163,7 +210,8 @@ def main():
             raise
 
     date_slash = str(meta["date"]).replace("-", "/")
-    compose(frame, meta["title"], date_slash, a.font, a.out)
+    compose(frame, meta["title"], date_slash, a.font, a.out,
+            emoji_font_path=a.emoji_font)
 
 
 if __name__ == "__main__":
