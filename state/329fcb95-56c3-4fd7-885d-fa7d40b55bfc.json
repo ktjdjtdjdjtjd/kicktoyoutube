@@ -4,7 +4,9 @@
   "title": "【初夏の緊急特番SP】重大発表。ご報告がございます。事件が起きました。",
   "start_time": "2026-07-18 07:02:15",
   "duration_s": 15053.0,
-  "status": "dispatched",
+  "status": "done",
   "retries": 1,
-  "dispatched_at": "2026-08-07T00:40:02.068007+00:00"
+  "dispatched_at": "2026-08-07T00:40:02.068007+00:00",
+  "updated_at": "2026-08-07T02:01:12.513926+00:00",
+  "yt_url": "https://www.youtube.com/watch?v=iEt4M2N08_w"
 }
