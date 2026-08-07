@@ -150,7 +150,9 @@ def pick_dispatches(videos, states, cfg, now, active_runs=None):
             "duration_s": v["duration"] / 1000.0,
             "_start": start,
         })
-    candidates.sort(key=lambda c: c["_start"])  # 古い順
+    # チャンネル優先度 (config.channelsの並び順) → 同一チャンネル内は古い順
+    prio = {slug: i for i, slug in enumerate(cfg.get("channels", []))}
+    candidates.sort(key=lambda c: (prio.get(c["slug"], 99), c["_start"]))
     return candidates[:allowance]
 
 

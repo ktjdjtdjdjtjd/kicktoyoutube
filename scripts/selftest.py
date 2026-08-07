@@ -276,6 +276,22 @@ def test_watch_stale_logic():
     check("stale: 3h + unknown -> not", not watch.dispatched_is_stale(mid, now, None))
     check("stale: 13h always", watch.dispatched_is_stale(old, now, None))
 
+    # チャンネル優先度: config.channelsの並び順 (はしもと君 > かつき)。新旧より優先
+    def vod(slug, uuid, days_ago):
+        start = now - timedelta(days=days_ago)
+        return {"video": {"uuid": uuid}, "is_live": False,
+                "duration": 3600_000, "session_title": uuid,
+                "start_time": start.strftime("%Y-%m-%d %H:%M:%S"),
+                "_slug": slug}
+    cfg = {"channels": ["hashimotokun78", "220ninimaru"], "backlog": True,
+           "daily_upload_limit": 6, "max_inflight": 3, "dispatch_batch": 3}
+    videos = [vod("220ninimaru", "n-old", 10), vod("hashimotokun78", "h-new", 1),
+              vod("220ninimaru", "n-mid", 5), vod("hashimotokun78", "h-old", 8)]
+    picks = watch.pick_dispatches(videos, {}, cfg, now, active_runs=False)
+    check("watch: hashimoto first then oldest",
+          [p["uuid"] for p in picks] == ["h-old", "h-new", "n-old"],
+          f"({[p['uuid'] for p in picks]})")
+
 
 def test_mark_done_import():
     import mark_done  # noqa: F401  (curl_cffi非依存であること)
