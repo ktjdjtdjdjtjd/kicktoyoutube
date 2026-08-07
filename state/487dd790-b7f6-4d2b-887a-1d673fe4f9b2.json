@@ -8,5 +8,9 @@
   "retries": 0,
   "dispatched_at": "2026-08-03T15:15:39.195308+00:00",
   "updated_at": "2026-08-03T18:10:40.028711+00:00",
-  "yt_url": "https://www.youtube.com/watch?v=MD6N-H6Q_2U"
+  "yt_url": "https://www.youtube.com/watch?v=MD6N-H6Q_2U",
+  "chapters": {
+    "result": "skipped-no-source",
+    "at": "2026-08-07T05:03:23.746073+00:00"
+  }
 }
