@@ -4,7 +4,9 @@
   "title": "テマキさんが家に来た！",
   "start_time": "2026-07-24 15:11:48",
   "duration_s": 18392.0,
-  "status": "dispatched",
+  "status": "done",
   "retries": 0,
-  "dispatched_at": "2026-08-07T09:15:26.260853+00:00"
+  "dispatched_at": "2026-08-07T09:15:26.260853+00:00",
+  "updated_at": "2026-08-07T10:52:26.934966+00:00",
+  "yt_url": "https://www.youtube.com/watch?v=Xj3YLAikX6o"
 }
