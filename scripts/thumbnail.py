@@ -155,14 +155,18 @@ def draw_title_runs(im, draw, shaper, title, x, cy, stroke_w):
             x += shaper.run_width(kind, s)
 
 
-def compose(frame_png, title, date_slash, font_path, out_jpg, emoji_font_path=""):
+def compose(frame_png, title, date_slash, font_path, out_jpg, emoji_font_path="",
+            band_alpha=150, band_extra=0):
+    """band_alpha=255 + band_extra>0 は既存サムネの上からタイトル帯だけ
+    塗り直すモード (rethumbの豆腐修理用)。"""
     im = Image.open(frame_png).convert("RGB").resize((W, H), Image.LANCZOS)
     draw = ImageDraw.Draw(im, "RGBA")
 
     # タイトル帯 (上部)
     shaper, title_fit = fit_title(title, font_path, emoji_font_path, W - 80)
     band_h = shaper.p.font_px + 44
-    draw.rectangle([0, MARGIN, W, MARGIN + band_h], fill=(0, 0, 0, 150))
+    draw.rectangle([0, MARGIN, W, MARGIN + band_h + band_extra],
+                   fill=(0, 0, 0, band_alpha))
     draw_title_runs(im, draw, shaper, title_fit, 40, MARGIN + band_h // 2,
                     stroke_w=6)
 

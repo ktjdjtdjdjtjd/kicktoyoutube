@@ -21,14 +21,28 @@ from yt_upload import channel_settings, get_credentials, set_thumbnail
 
 
 def fetch_frame_via_youtube(yt_url, t_sec, out_png, clip="ytclip.mp4"):
-    """source失効VODのフォールバック: YouTube動画のピーク付近だけ低画質DLして抜く。"""
+    """最終フォールバック: YouTube動画のピーク付近だけDLして抜く (焼き込み済み映像)。"""
     Path(clip).unlink(missing_ok=True)
     t = max(0, int(t_sec))
-    subprocess.run(["yt-dlp", "-f", "wv*/w", "--no-part",
+    subprocess.run(["yt-dlp", "-f", "bv*[height<=720]/bv*/b", "--no-part",
                     "--download-sections", f"*{t}-{t + 20}",
                     "-o", clip, yt_url], check=True)
     thumbnail.fetch_frame_from_video(clip, 5, out_png)
     Path(clip).unlink(missing_ok=True)
+
+
+def fetch_existing_thumb(video_id, out_png):
+    """既存サムネ画像を土台として取得 (フレームは綺麗でタイトル帯だけ直す用)。"""
+    import urllib.request
+    for q in ("maxresdefault", "hqdefault"):
+        try:
+            data = urllib.request.urlopen(
+                f"https://i.ytimg.com/vi/{video_id}/{q}.jpg", timeout=20).read()
+            Path(out_png).write_bytes(data)
+            return True
+        except Exception:
+            continue
+    return False
 
 
 def process_one(uuid, st, cfg, font, emoji_font, dry_run):
@@ -44,36 +58,47 @@ def process_one(uuid, st, cfg, font, emoji_font, dry_run):
     source = (meta or {}).get("source")
     channel_id = (meta or {}).get("channel_id")
     print(f"target: {title} ({st['yt_url']})", file=sys.stderr)
-
-    # チャットからピーク検出 (取れなければ尺の1/3で妥協)
-    peak = duration_s / 3
-    if channel_id:
-        try:
-            msgs = chat_fetch.fetch_all_chat(
-                channel_id, chat_fetch.parse_dt(start_time), duration_s,
-                workers=cfg.get("chat_workers", 8), keep_emotes=False)
-            chat_path = f"chat_{uuid[:8]}.jsonl"
-            with open(chat_path, "w", encoding="utf-8") as f:
-                for rel, _content in msgs:
-                    f.write(json.dumps({"rel": rel}) + "\n")
-            peak = thumbnail.find_hype_peak(chat_path, duration_s)
-            print(f"hype peak: {peak:.0f}s ({len(msgs)} msgs)", file=sys.stderr)
-        except Exception as e:
-            print(f"chat fetch failed ({e}) — fallback peak {peak:.0f}s",
-                  file=sys.stderr)
+    video_id = st["yt_url"].split("v=")[-1]
 
     frame = f"frame_{uuid[:8]}.png"
-    try:
-        if not source:
-            raise RuntimeError("no source url")
-        thumbnail.fetch_frame_from_source(source, peak, frame)
-    except Exception as e:
-        print(f"source frame failed ({e}) — YouTube frame fallback", file=sys.stderr)
-        fetch_frame_via_youtube(st["yt_url"], peak, frame, clip=f"clip_{uuid[:8]}.mp4")
+    band_alpha, band_extra = 150, 0
+    got_frame = False
+    if source:
+        # クリーンなフレームを取り直せる場合: チャットからピーク検出→sourceから取得
+        peak = duration_s / 3
+        if channel_id:
+            try:
+                msgs = chat_fetch.fetch_all_chat(
+                    channel_id, chat_fetch.parse_dt(start_time), duration_s,
+                    workers=cfg.get("chat_workers", 8), keep_emotes=False)
+                chat_path = f"chat_{uuid[:8]}.jsonl"
+                with open(chat_path, "w", encoding="utf-8") as f:
+                    for rel, _content in msgs:
+                        f.write(json.dumps({"rel": rel}) + "\n")
+                peak = thumbnail.find_hype_peak(chat_path, duration_s)
+                print(f"hype peak: {peak:.0f}s ({len(msgs)} msgs)", file=sys.stderr)
+            except Exception as e:
+                print(f"chat fetch failed ({e}) — fallback peak {peak:.0f}s",
+                      file=sys.stderr)
+        try:
+            thumbnail.fetch_frame_from_source(source, peak, frame)
+            got_frame = True
+        except Exception as e:
+            print(f"source frame failed ({e})", file=sys.stderr)
+    if not got_frame:
+        # source失効: 既存サムネを土台にタイトル帯だけ不透明帯で塗り直す
+        if fetch_existing_thumb(video_id, frame):
+            band_alpha, band_extra = 255, 12
+            print("using existing thumbnail as base (reband)", file=sys.stderr)
+        else:
+            # 既存サムネも無い場合の最終手段 (焼き込み済み映像からフレーム)
+            fetch_frame_via_youtube(st["yt_url"], duration_s / 3, frame,
+                                    clip=f"clip_{uuid[:8]}.mp4")
 
     out = f"thumb_{uuid[:8]}.jpg"
     date_slash = str(start_time)[:10].replace("-", "/")
-    thumbnail.compose(frame, title, date_slash, font, out, emoji_font_path=emoji_font)
+    thumbnail.compose(frame, title, date_slash, font, out, emoji_font_path=emoji_font,
+                      band_alpha=band_alpha, band_extra=band_extra)
     if dry_run:
         print(f"dry-run: generated {out}")
         return
