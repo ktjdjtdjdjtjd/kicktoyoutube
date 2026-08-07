@@ -51,10 +51,11 @@
     },
     "220ninimaru": {
       "yt_token_env": "YT_TOKEN_JSON_NINIMARU",
-      "title_template": "【ににまる】{title}【{date_slash}】",
-      "description_template": "ににまるのKICK配信の録画アーカイブです。\n\nタイムスタンプ▽\n\n\n元配信▽\n{title}\n{url}\n\n#キッカーズ #ににまる",
+      "title_template": "【かつき】{title}【{date_slash}】",
+      "description_template": "かつきのKICK配信の録画アーカイブです。\n\nタイムスタンプ▽\n\n\n元配信▽\n{title}\n{url}\n\n#キッカーズ #かつき #ににまる",
       "tags": [
         "キッカーズ",
+        "かつき",
         "ににまる",
         "Kick"
       ]

@@ -149,7 +149,7 @@ def test_yt_title_sanitize():
     cfg = json.loads((Path(__file__).parent.parent / "config.json").read_text(encoding="utf-8"))
     cs = channel_settings(cfg, "220ninimaru")
     check("yt: ninimaru settings", cs["yt_token_env"] == "YT_TOKEN_JSON_NINIMARU"
-          and "ににまる" in cs["title_template"])
+          and "かつき" in cs["title_template"])
     cs2 = channel_settings(cfg, "hashimotokun78")
     check("yt: hashimoto settings", cs2["yt_token_env"] == "YT_TOKEN_JSON"
           and "はしもと君" in cs2["title_template"])
@@ -187,7 +187,8 @@ def test_thumbnail():
 
 def test_chapters_logic():
     import chapters
-    check("ch: hms", chapters.hms(3725) == "1:02:05" and chapters.hms(65) == "1:05")
+    check("ch: hms zero-padded", chapters.hms(3725) == "01:02:05"
+          and chapters.hms(65) == "01:05" and chapters.hms(0) == "00:00")
     check("ch: parse_ts", chapters.parse_ts("1:02:05") == 3725 and chapters.parse_ts("0:00") == 0)
     raw = """はい、チャプターです。
 0:00 配信開始
@@ -202,6 +203,12 @@ def test_chapters_logic():
           f"({ch})")
     ch2 = chapters.validate_chapters("2:00 いきなり途中から", 6000)
     check("ch: 0:00 auto-prepended", ch2[0] == (0, "配信開始"))
+    # Geminiが改行せず1行に連結して返すケース (実際に起きた) を分解できること
+    oneline = "0:00 配信開始 \n0:02:18 メイン会場へ徒歩移動 0:11:15 他配信者との合流と挨拶 0:42:44 バッジの受け取り"
+    ch3 = chapters.validate_chapters(oneline, 20000)
+    check("ch: one-line raw split", [c[1] for c in ch3] ==
+          ["配信開始", "メイン会場へ徒歩移動", "他配信者との合流と挨拶", "バッジの受け取り"],
+          f"({ch3})")
     b = chapters.bucketize([(0, "あ"), (10, "い"), (65, "う"), (66, "え" * 200)],
                            bucket=60, max_chars=50)
     check("ch: bucketize merge+cap", b[0] == (0, "あ い") and b[1][0] == 60
@@ -209,11 +216,28 @@ def test_chapters_logic():
     desc = "はしもと君のKICK配信の録画アーカイブです。\n\nタイムスタンプ▽\n\n\n元配信▽\nタイトル\nhttps://x\n\n#タグ"
     new = chapters.inject_description(desc, [(0, "配信開始"), (300, "移動")])
     check("ch: inject keeps head/tail",
-          new.startswith("はしもと君の") and "0:00 配信開始\n5:00 移動" in new
+          new.startswith("はしもと君の") and "00:00 配信開始\n05:00 移動" in new
           and "元配信▽\nタイトル" in new and new.rstrip().endswith("#タグ"))
     # 再実行しても二重にならない
     new2 = chapters.inject_description(new, [(0, "配信開始"), (600, "別の章")])
-    check("ch: inject idempotent", "5:00 移動" not in new2 and "10:00 別の章" in new2)
+    check("ch: inject idempotent", "05:00 移動" not in new2 and "10:00 別の章" in new2)
+    # retrofit: 壊れた1行連結ブロックの再整形 + ににまる→かつき改名
+    import retrofit_format
+    broken = ("ににまるのKICK配信の録画アーカイブです。\n\nタイムスタンプ▽\n"
+              "0:00 配信開始 \n0:02:18 徒歩移動 0:11:15 合流と挨拶 1:21:30 ブース紹介"
+              "\n\n元配信▽\nタイトル\nhttps://x\n\n#キッカーズ #ににまる")
+    fixed = retrofit_format.reformat_description(broken, "220ninimaru")
+    check("rf: block reformatted",
+          "00:00 配信開始\n02:18 徒歩移動\n11:15 合流と挨拶\n01:21:30 ブース紹介" in fixed,
+          f"({fixed!r})")
+    check("rf: rename ににまる→かつき", fixed.startswith("かつきのKICK配信")
+          and "#キッカーズ #かつき #ににまる" in fixed)
+    check("rf: reformat idempotent",
+          retrofit_format.reformat_description(fixed, "220ninimaru") == fixed)
+    check("rf: retitle", retrofit_format.retitle("【ににまる】昼配信【2026/08/05】",
+          "220ninimaru") == "【かつき】昼配信【2026/08/05】"
+          and retrofit_format.retitle("【はしもと君】朝【2026/08/05】", "hashimotokun78")
+          == "【はしもと君】朝【2026/08/05】")
 
 
 def test_watch_stale_logic():

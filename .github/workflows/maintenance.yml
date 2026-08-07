@@ -1,0 +1,35 @@
+name: maintenance
+# 投稿済み動画の一括レトロフィット (タイムスタンプ形式修正・改名など)。
+# 手動dispatch か maintenance/ 配下へのpushで1回実行する
+on:
+  workflow_dispatch:
+  push:
+    paths:
+      - "maintenance/**"
+
+permissions:
+  contents: write
+
+concurrency:
+  group: maintenance
+  cancel-in-progress: false
+
+jobs:
+  retrofit:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262  # v4
+      - uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065  # v5
+        with:
+          python-version: "3.12"
+      - run: |
+          pip install --quiet curl_cffi==0.14.0 \
+            google-auth==2.53.0 google-auth-httplib2==0.3.1 google-api-python-client==2.194.0
+      - name: Retrofit uploaded videos
+        env:
+          YT_TOKEN_JSON: ${{ secrets.YT_TOKEN_JSON }}
+          YT_TOKEN_JSON_NINIMARU: ${{ secrets.YT_TOKEN_JSON_NINIMARU }}
+        run: |
+          git fetch origin main && git checkout -B main origin/main
+          PYTHONPATH=scripts python scripts/retrofit_format.py

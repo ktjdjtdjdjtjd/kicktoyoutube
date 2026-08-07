@@ -22,17 +22,18 @@ from pathlib import Path
 import kick_api
 from repo_state import STATE_DIR, commit_paths
 
-CHAPTER_RE = re.compile(r"^(\d{1,2}:)?\d{1,2}:\d{2}\s+\S.*$")
+# タイムスタンプトークン (前後が数字/コロンでない位置のみ = 0:11:15 の 11:15 に誤マッチしない)
+TS_TOKEN = r"(?<![\d:])(?:\d{1,2}:)?\d{1,2}:\d{2}(?![\d:])"
 GEMINI_URL = ("https://generativelanguage.googleapis.com/v1beta/models/"
               "{model}:generateContent?key={key}")
 
 PROMPT = """以下はライブ配信の文字起こしです。各行の先頭に実測のタイムスタンプが付いています。
 この配信のYouTube用チャプター(タイムスタンプ)を作成してください。
 
-## 出力形式(これ以外は一切出力しない)
-0:00 配信開始
-H:MM:SS 見出し
-H:MM:SS 見出し
+## 出力形式(これ以外は一切出力しない。1行に1章、必ず改行区切り)
+00:00 配信開始
+HH:MM:SS 見出し
+HH:MM:SS 見出し
 
 ## ルール
 - 見出しは10文字前後の体言止め。飾り言葉・煽り・絵文字は禁止
@@ -48,9 +49,10 @@ H:MM:SS 見出し
 
 
 def hms(seconds):
+    """表示形式: 60分未満=MM:SS、1時間以降=HH:MM:SS (どちらもゼロ埋め)。"""
     s = int(seconds)
     h, m, sec = s // 3600, (s % 3600) // 60, s % 60
-    return f"{h}:{m:02d}:{sec:02d}" if h else f"{m}:{sec:02d}"
+    return f"{h:02d}:{m:02d}:{sec:02d}" if h else f"{m:02d}:{sec:02d}"
 
 
 def parse_ts(t):
@@ -164,17 +166,25 @@ def gemini_chapters(lines, api_key, model):
     raise last_err
 
 
+def extract_pairs(text):
+    """テキストから (秒, 見出し) を抽出。Geminiが改行せず1行に複数章を
+    連結して返しても、タイムスタンプトークンを区切りに分解できる。"""
+    parts = re.split(f"({TS_TOKEN})", text)
+    pairs = []
+    for i in range(1, len(parts) - 1, 2):
+        sec = parse_ts(parts[i])
+        label = parts[i + 1].splitlines()[0] if parts[i + 1].strip() else ""
+        label = label.strip(" \t-•:：、。")
+        if sec is not None and label:
+            pairs.append((sec, label))
+    return pairs
+
+
 def validate_chapters(raw, duration_s):
     """出力を検証・正規化。[(sec, label)] を返す。"""
     out = []
-    for line in raw.splitlines():
-        line = line.strip().lstrip("-• ").strip()
-        if not CHAPTER_RE.match(line):
-            continue
-        ts, label = line.split(None, 1)
-        sec = parse_ts(ts)
-        label = label.strip()
-        if sec is None or sec > duration_s or not label or len(label) > 40:
+    for sec, label in extract_pairs(raw):
+        if sec > duration_s or len(label) > 40:
             continue
         out.append((sec, label))
     # 昇順・最小間隔60秒・先頭0:00保証 (YouTube要件: 3個以上/各10秒以上)
