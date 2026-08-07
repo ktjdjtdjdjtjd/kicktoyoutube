@@ -5,7 +5,7 @@ on:
   workflow_dispatch:
   push:
     paths:
-      - "maintenance/**"
+      - "maintenance/trigger.txt"
 
 permissions:
   contents: write
