@@ -4,7 +4,9 @@
   "title": "テマキ村で大会",
   "start_time": "2026-08-06 11:15:55",
   "duration_s": 16061.0,
-  "status": "dispatched",
+  "status": "done",
   "retries": 0,
-  "dispatched_at": "2026-08-08T07:14:17.724171+00:00"
+  "dispatched_at": "2026-08-08T07:14:17.724171+00:00",
+  "updated_at": "2026-08-08T08:26:46.860660+00:00",
+  "yt_url": "https://www.youtube.com/watch?v=Jzmtfkn_oUk"
 }
