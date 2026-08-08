@@ -298,6 +298,20 @@ def test_mark_done_import():
     check("mark_done: importable without curl_cffi deps", True)
 
 
+def test_burn_request():
+    import burn_request
+    m = burn_request.KICK_URL_RE.search(
+        "https://kick.com/hashimotokun78/videos/019fbc35-23b8-7aaa-b384-2b250e8e75bc")
+    check("br: kick url parse", m and m.group(1) == "hashimotokun78"
+          and m.group(2).startswith("019fbc35"))
+    m2 = burn_request.TWITCH_URL_RE.search("https://www.twitch.tv/videos/2770109916?t=1s")
+    check("br: twitch url parse", m2 and m2.group(1) == "2770109916")
+    check("br: safe_name", burn_request.safe_name('あ/い:う*え テスト') == "あ_い_う_え_テスト"
+          and burn_request.safe_name("") == "video")
+    import twitch_chat_fetch  # noqa: F401  (import可能なこと)
+    check("br: twitch_chat_fetch importable", True)
+
+
 def main():
     test_plan_segments()
     test_tokenize()
@@ -308,6 +322,7 @@ def main():
     test_chapters_logic()
     test_watch_stale_logic()
     test_mark_done_import()
+    test_burn_request()
     if FAILED:
         print(f"\n{len(FAILED)} FAILED: {FAILED}")
         sys.exit(1)
