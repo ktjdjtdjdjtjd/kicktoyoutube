@@ -8,5 +8,10 @@
   "retries": 0,
   "dispatched_at": "2026-08-07T07:53:08.194228+00:00",
   "updated_at": "2026-08-07T09:49:05.437778+00:00",
-  "yt_url": "https://www.youtube.com/watch?v=WDAC_8avbcc"
+  "yt_url": "https://www.youtube.com/watch?v=WDAC_8avbcc",
+  "chapters": {
+    "result": "done",
+    "at": "2026-08-08T14:09:34.767766+00:00",
+    "n": 30
+  }
 }
