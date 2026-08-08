@@ -1,7 +1,7 @@
 {
-  "platform": "twitch",
-  "video": "https://www.twitch.tv/videos/2840191690",
+  "platform": "kick",
+  "video": "https://kick.com/220ninimaru/videos/ec64177d-da0f-487b-96d9-68f5abcb2a49",
   "height": 720,
   "limit_seconds": 300,
-  "requested_at": "2026-08-09T00:23:54"
+  "requested_at": "2026-08-09T00:49:46"
 }
