@@ -4,7 +4,9 @@
   "title": "明日はキッカーズ会議",
   "start_time": "2026-07-27 08:27:14",
   "duration_s": 25206.0,
-  "status": "dispatched",
+  "status": "done",
   "retries": 1,
-  "dispatched_at": "2026-08-09T07:52:40.581376+00:00"
+  "dispatched_at": "2026-08-09T07:52:40.581376+00:00",
+  "updated_at": "2026-08-09T09:54:12.823549+00:00",
+  "yt_url": "https://www.youtube.com/watch?v=bEvYA1c0gfs"
 }
