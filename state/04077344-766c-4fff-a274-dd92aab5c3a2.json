@@ -4,7 +4,9 @@
   "title": "まったりくんです",
   "start_time": "2026-07-31 15:29:58",
   "duration_s": 13387.0,
-  "status": "dispatched",
+  "status": "done",
   "retries": 0,
-  "dispatched_at": "2026-08-09T10:52:18.087741+00:00"
+  "dispatched_at": "2026-08-09T10:52:18.087741+00:00",
+  "updated_at": "2026-08-09T11:54:15.118231+00:00",
+  "yt_url": "https://www.youtube.com/watch?v=Xt79GyLcP84"
 }
