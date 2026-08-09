@@ -4,7 +4,9 @@
   "title": "とても楽しいキッカーズ会議でした　大阪に帰ります",
   "start_time": "2026-07-30 05:48:49",
   "duration_s": 6727.0,
-  "status": "dispatched",
+  "status": "done",
   "retries": 0,
-  "dispatched_at": "2026-08-09T10:04:48.262511+00:00"
+  "dispatched_at": "2026-08-09T10:04:48.262511+00:00",
+  "updated_at": "2026-08-09T10:52:31.362583+00:00",
+  "yt_url": "https://www.youtube.com/watch?v=IsZ8Hh2fmlI"
 }
