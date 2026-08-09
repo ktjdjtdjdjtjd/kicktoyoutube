@@ -77,6 +77,8 @@ def pick_candidate(only_uuid=None):
             continue
         if d.get("chapters"):
             continue
+        if int(d.get("chapters_attempts", 0)) >= 5:
+            continue  # 失敗が続く動画は諦める (無限リトライ防止)
         if not d.get("slug"):
             continue  # 旧手動投入分はメタ不足のため対象外
         if only_uuid and d.get("uuid") != only_uuid:
@@ -95,20 +97,46 @@ def download_audio(source_url, dest):
                     "-o", dest, source_url], check=True)
 
 
-def transcribe(path, model_size="small"):
+def extract_audio(src, dest="audio.wav"):
+    """動画→16kHzモノラルwav。長尺VODの一括デコードによるメモリ圧を避ける下拵え。"""
+    subprocess.run(["ffmpeg", "-y", "-hide_banner", "-loglevel", "error",
+                    "-i", src, "-vn", "-ac", "1", "-ar", "16000", dest],
+                   check=True)
+    Path(src).unlink(missing_ok=True)
+    return dest
+
+
+def transcribe(path, model_size="small", chunk_s=1800):
+    """30分チャンクずつ文字起こし (4時間級VODの一括処理はランナーVMごと
+    落ちる=exit143 が実測されたため、常にメモリ有界にする)。"""
     from faster_whisper import WhisperModel
     model = WhisperModel(model_size, device="cpu", compute_type="int8")
-    segments, info = model.transcribe(path, language="ja", beam_size=1,
-                                      vad_filter=True,
-                                      vad_parameters={"min_silence_duration_ms": 1500})
+    r = subprocess.run(["ffprobe", "-v", "error", "-show_entries",
+                        "format=duration", "-of", "csv=p=0", path],
+                       capture_output=True, text=True, check=True)
+    total = float(r.stdout.strip())
     lines = []
-    for seg in segments:
-        text = seg.text.strip()
-        if text:
-            lines.append((seg.start, text))
-    print(f"transcribed: {len(lines)} lines, duration={info.duration:.0f}s",
+    t = 0.0
+    part = "chunk.wav"
+    while t < total:
+        clen = min(chunk_s, total - t)
+        subprocess.run(["ffmpeg", "-y", "-hide_banner", "-loglevel", "error",
+                        "-ss", f"{t:.3f}", "-t", f"{clen:.3f}", "-i", path, part],
+                       check=True)
+        segments, _info = model.transcribe(part, language="ja", beam_size=1,
+                                           vad_filter=True,
+                                           vad_parameters={"min_silence_duration_ms": 1500})
+        for seg in segments:
+            text = seg.text.strip()
+            if text:
+                lines.append((t + seg.start, text))
+        print(f"transcribe chunk {t:.0f}-{t + clen:.0f}s: lines={len(lines)}",
+              file=sys.stderr)
+        t += clen
+    Path(part).unlink(missing_ok=True)
+    print(f"transcribed: {len(lines)} lines, duration={total:.0f}s",
           file=sys.stderr)
-    return lines, info.duration
+    return lines, total
 
 
 MODEL_FALLBACKS = ["gemini-2.5-flash", "gemini-2.0-flash", "gemini-1.5-flash",
@@ -250,6 +278,14 @@ def main():
         return
     print(f"target: {st.get('title')} {st['yt_url']}", file=sys.stderr)
 
+    # 試行回数を先に記録 (ランナー強制終了などジョブごと死ぬ失敗も数える)
+    if not a.dry_run:
+        st["chapters_attempts"] = int(st.get("chapters_attempts", 0)) + 1
+        path.write_text(json.dumps(st, ensure_ascii=False, indent=2),
+                        encoding="utf-8")
+        commit_paths([path], f"state: chapters attempt {st['chapters_attempts']} "
+                             f"({st.get('uuid', '')[:8]})", fatal=False)
+
     def mark(result, extra=None):
         st["chapters"] = {"result": result,
                           "at": datetime.now(timezone.utc).isoformat(), **(extra or {})}
@@ -269,7 +305,8 @@ def main():
         return
 
     download_audio(meta["source"], "low.mp4")
-    lines, duration = transcribe("low.mp4", ccfg.get("whisper_model", "small"))
+    audio = extract_audio("low.mp4")
+    lines, duration = transcribe(audio, ccfg.get("whisper_model", "small"))
     if len(lines) < 20:
         mark("skipped-no-speech")
         return
