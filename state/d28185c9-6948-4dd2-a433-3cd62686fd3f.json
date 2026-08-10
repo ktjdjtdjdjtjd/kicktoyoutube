@@ -4,7 +4,9 @@
   "title": "やりますか！",
   "start_time": "2026-08-08 14:05:35",
   "duration_s": 10203.0,
-  "status": "dispatched",
+  "status": "done",
   "retries": 0,
-  "dispatched_at": "2026-08-10T13:26:58.307152+00:00"
+  "dispatched_at": "2026-08-10T13:26:58.307152+00:00",
+  "updated_at": "2026-08-10T14:06:43.254486+00:00",
+  "yt_url": "https://www.youtube.com/watch?v=i6LhmDanfWI"
 }
