@@ -6,5 +6,10 @@
   "uuid": "019f8cb3-26f8-7afd-8556-89826b109ac6",
   "title": "【灼熱地獄】日本一美味しいマックに行く",
   "start_time": "2026-07-26",
-  "chapters_attempts": 1
+  "chapters_attempts": 1,
+  "chapters": {
+    "result": "done",
+    "at": "2026-08-10T03:17:22.304392+00:00",
+    "n": 38
+  }
 }
