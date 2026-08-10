@@ -4,7 +4,9 @@
   "title": "ニートの夏休み🍉",
   "start_time": "2026-08-02 09:32:37",
   "duration_s": 18899.0,
-  "status": "dispatched",
+  "status": "done",
   "retries": 0,
-  "dispatched_at": "2026-08-10T05:54:32.103078+00:00"
+  "dispatched_at": "2026-08-10T05:54:32.103078+00:00",
+  "updated_at": "2026-08-10T07:34:54.658323+00:00",
+  "yt_url": "https://www.youtube.com/watch?v=OXhpRsfOmI4"
 }
