@@ -24,10 +24,12 @@ def main():
     ap.add_argument("--meta", default="out/meta.json")
     ap.add_argument("--segdir", default="segs")
     ap.add_argument("--out", default="final.mp4")
-    ap.add_argument("--tolerance", type=float, default=10.0)
+    ap.add_argument("--tolerance", type=float, default=0.0,
+                    help="0=自動 (max(30s, 尺の0.5%%)。Kickのメタ尺は実映像より数十秒長いことがある)")
     a = ap.parse_args()
     meta = json.loads(Path(a.meta).read_text(encoding="utf-8"))
     expected = meta["duration_s"]
+    tolerance = a.tolerance or max(30.0, expected * 0.005)
 
     segs = sorted(Path(a.segdir).rglob("seg_*.mp4"))
     if not segs:
@@ -58,8 +60,8 @@ def main():
         errs.append(f"pix_fmt={vstreams[0].get('pix_fmt')} (expected yuv420p)")
     if not astreams:
         errs.append("no audio stream")
-    if abs(dur - expected) > a.tolerance:
-        errs.append(f"duration={dur:.1f}s expected={expected:.1f}s")
+    if abs(dur - expected) > tolerance:
+        errs.append(f"duration={dur:.1f}s expected={expected:.1f}s (tol={tolerance:.0f}s)")
     if errs:
         for e in errs:
             print(f"VERIFY FAIL: {e}", file=sys.stderr)
