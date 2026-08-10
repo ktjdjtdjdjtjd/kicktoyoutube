@@ -157,6 +157,7 @@ jobs:
         env:
           YT_TOKEN_JSON: ${{ secrets.YT_TOKEN_JSON }}
           YT_TOKEN_JSON_NINIMARU: ${{ secrets.YT_TOKEN_JSON_NINIMARU }}
+          YT_TOKEN_JSON_WAINAINA: ${{ secrets.YT_TOKEN_JSON_WAINAINA }}
         run: |
           PYTHONPATH=scripts python scripts/yt_upload.py final.mp4 \
             --meta out/meta.json --privacy "${{ inputs.privacy }}" --thumb thumb.jpg

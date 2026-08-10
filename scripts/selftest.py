@@ -155,6 +155,9 @@ def test_yt_title_sanitize():
           and "はしもと君" in cs2["title_template"])
     cs3 = channel_settings(cfg, "unknown_channel")
     check("yt: unknown falls back", cs3["yt_token_env"] == "YT_TOKEN_JSON")
+    cs4 = channel_settings(cfg, "wainaina2525")
+    check("yt: wainaina settings", cs4["yt_token_env"] == "YT_TOKEN_JSON_WAINAINA"
+          and "ワイナイナ" in cs4["title_template"])
 
 
 def test_thumbnail():
