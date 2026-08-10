@@ -4,7 +4,9 @@
   "title": "花火を見に仙台まで来た",
   "start_time": "2026-08-05 10:19:58",
   "duration_s": 23355.0,
-  "status": "dispatched",
+  "status": "done",
   "retries": 0,
-  "dispatched_at": "2026-08-10T11:11:05.521423+00:00"
+  "dispatched_at": "2026-08-10T11:11:05.521423+00:00",
+  "updated_at": "2026-08-10T13:20:49.607983+00:00",
+  "yt_url": "https://www.youtube.com/watch?v=nG99DERiCAw"
 }
