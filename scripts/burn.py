@@ -181,14 +181,17 @@ def main():
     cfg = kick_api.load_config(a.config)
 
     url = f"https://kick.com/{a.slug}/videos/{a.uuid}"
+    height = cfg.get("format_height", 720)
     try:
-        source = json.loads(Path(a.meta).read_text(encoding="utf-8")).get("source")
-        if source:
-            url = source
+        meta_d = json.loads(Path(a.meta).read_text(encoding="utf-8"))
+        if meta_d.get("source"):
+            url = meta_d["source"]
+        # burnonly依頼はmetaにheight指定を持つ (アーカイブフローのmetaには無く720のまま)
+        height = int(meta_d.get("height") or height)
     except Exception as e:
         print(f"meta read failed ({e}) — fall back to page URL", file=sys.stderr)
     if not Path(a.vod).exists():
-        download_vod(url, cfg.get("format_height", 720), a.vod)
+        download_vod(url, height, a.vod)
     else:
         print(f"vod exists, skip download: {a.vod}", file=sys.stderr)
 
