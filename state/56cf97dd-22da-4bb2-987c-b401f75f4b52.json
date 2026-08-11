@@ -4,7 +4,9 @@
   "title": "自首しにいきました。全てを話します！",
   "start_time": "2026-07-13 07:15:36",
   "duration_s": 9195.0,
-  "status": "dispatched",
+  "status": "done",
   "retries": 0,
-  "dispatched_at": "2026-08-11T14:10:07.385685+00:00"
+  "dispatched_at": "2026-08-11T14:10:07.385685+00:00",
+  "updated_at": "2026-08-11T14:53:24.690938+00:00",
+  "yt_url": "https://www.youtube.com/watch?v=KV07L-_D85g"
 }
