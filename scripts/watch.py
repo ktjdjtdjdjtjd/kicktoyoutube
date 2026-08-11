@@ -28,6 +28,8 @@ from repo_state import STATE_DIR, commit_state
 PT = ZoneInfo("America/Los_Angeles")
 STALE_HOURS = 12       # 通常の失敗リトライ待ち
 QUICK_STALE_HOURS = 2  # 処理が1本も動いていない場合の短縮リトライ待ち (障害復帰の高速化)
+MAX_ATTEMPTS = 5       # 同一VODの自動投入は累計5回まで。超えたら needs-review で自動停止
+                       # (再開は人がstateの retries を0に戻し status を消す。自動では再開しない)
 
 
 def repo_has_active_process_runs():
@@ -91,7 +93,7 @@ def latest_ts(st):
 
 
 def pick_dispatches(videos, states, cfg, now, active_runs=None):
-    """[(slug付きvod情報)] を古い順に、ペース制御の範囲で返す。"""
+    """(投入候補リスト, 再試行上限超過リスト) を返す。候補はチャンネル優先度→古い順。"""
     backlog = cfg.get("backlog", False)
     max_age = timedelta(days=cfg.get("max_vod_age_days", 3))
     min_end_age = timedelta(minutes=cfg.get("min_end_age_minutes", 20))
@@ -116,10 +118,9 @@ def pick_dispatches(videos, states, cfg, now, active_runs=None):
     allowance = min(daily_limit - today_count, max_inflight - inflight, batch)
     print(f"pace: inflight={inflight} today(PT)={today_count} allowance={allowance}",
           file=sys.stderr)
-    if allowance <= 0:
-        return []
 
     candidates = []
+    exhausted = []
     for v in videos:
         uuid = (v.get("video") or {}).get("uuid")
         if not uuid or v.get("is_live") or not v.get("duration"):
@@ -137,11 +138,15 @@ def pick_dispatches(videos, states, cfg, now, active_runs=None):
         if st:
             status = str(st.get("status", ""))
             ts = latest_ts(st)
-            if status.startswith(("done", "skipped")):
-                continue
+            if status.startswith(("done", "skipped", "needs-review")):
+                continue  # needs-review = 人の判断待ち。自動では二度と投入しない
             if status.startswith("dispatched") and not dispatched_is_stale(ts, now, active_runs):
                 continue  # 処理中
-            # staleなdispatched = 失敗run → 再投入対象
+            # staleなdispatched = 失敗run → 再投入対象。ただし累計上限で自動停止
+            if status.startswith("dispatched") and int(st.get("retries", 0)) >= MAX_ATTEMPTS - 1:
+                exhausted.append({"slug": v["_slug"], "uuid": uuid,
+                                  "title": v.get("session_title") or ""})
+                continue
         candidates.append({
             "slug": v["_slug"],
             "uuid": uuid,
@@ -153,7 +158,9 @@ def pick_dispatches(videos, states, cfg, now, active_runs=None):
     # チャンネル優先度 (config.channelsの並び順) → 同一チャンネル内は古い順
     prio = {slug: i for i, slug in enumerate(cfg.get("channels", []))}
     candidates.sort(key=lambda c: (prio.get(c["slug"], 99), c["_start"]))
-    return candidates[:allowance]
+    if allowance <= 0:
+        return [], exhausted  # 枠が無くても上限超過の記録は行う
+    return candidates[:allowance], exhausted
 
 
 def run(cmd, check=True):
@@ -180,7 +187,38 @@ def main():
 
     active = repo_has_active_process_runs()
     print(f"active process runs: {active}", file=sys.stderr)
-    picks = pick_dispatches(videos, load_states(), cfg, now, active_runs=active)
+    picks, exhausted = pick_dispatches(videos, load_states(), cfg, now,
+                                       active_runs=active)
+
+    # 累計上限に達した案件を needs-review 化して自動投入を停止 (人の判断待ち)
+    if exhausted and not a.dry_run:
+        paths = []
+        for e in exhausted:
+            p = STATE_DIR / f"{e['uuid']}.json"
+            prev = {}
+            if p.exists():
+                try:
+                    prev = json.loads(p.read_text(encoding="utf-8"))
+                except Exception:
+                    prev = {}
+            prev.update({
+                "slug": e["slug"], "uuid": e["uuid"],
+                "title": prev.get("title") or e["title"],
+                "status": "needs-review",
+                "failure_class": "process-failed",
+                "last_failed_at": now.isoformat(),
+                "review_reason": (f"自動再試行{MAX_ATTEMPTS}回失敗のため自動投入を停止。"
+                                  "再開する場合は retries を0に戻し status を削除する"),
+            })
+            p.write_text(json.dumps(prev, ensure_ascii=False, indent=2),
+                         encoding="utf-8")
+            paths.append(p)
+            print(f"needs-review: {e['slug']}/{e['uuid']} {e['title']}")
+        commit_state(paths, f"state: needs-review {len(paths)} vod(s)", fatal=False)
+    elif exhausted:
+        for e in exhausted:
+            print(f"[dry-run] needs-review: {e['slug']}/{e['uuid']} {e['title']}")
+
     if not picks:
         print("nothing to dispatch")
         return

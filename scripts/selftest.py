@@ -290,10 +290,40 @@ def test_watch_stale_logic():
            "daily_upload_limit": 6, "max_inflight": 3, "dispatch_batch": 3}
     videos = [vod("220ninimaru", "n-old", 10), vod("hashimotokun78", "h-new", 1),
               vod("220ninimaru", "n-mid", 5), vod("hashimotokun78", "h-old", 8)]
-    picks = watch.pick_dispatches(videos, {}, cfg, now, active_runs=False)
+    picks, exhausted = watch.pick_dispatches(videos, {}, cfg, now, active_runs=False)
     check("watch: hashimoto first then oldest",
           [p["uuid"] for p in picks] == ["h-old", "h-new", "n-old"],
           f"({[p['uuid'] for p in picks]})")
+    check("watch: no exhausted on fresh", exhausted == [])
+
+    # ---- 自己修復: 再試行上限(累計5回=retries4)と needs-review ----
+    stale = (now - timedelta(hours=13)).isoformat()
+    def st(status, retries=None):
+        d = {"status": status, "dispatched_at": stale}
+        if retries is not None:
+            d["retries"] = retries
+        return d
+    videos2 = [vod("hashimotokun78", f"u{i}", 5 + i) for i in range(6)]
+    states = {
+        "u0": st("dispatched", 2),          # 5回未満 → 再投入対象
+        "u1": st("dispatched", 4),          # 5回目も失敗(=retries4でstale) → 停止対象
+        "u2": st("needs-review", 4),        # 停止済み → 二度と投入しない
+        "u3": st("skipped-subonly"),        # 別分類(業務スキップ) → 影響なし
+        "u4": st("dispatched"),             # 旧台帳互換(retriesキー無し=0扱い) → 再投入対象
+        "u5": {"status": "done"},           # 完了 → 影響なし
+    }
+    picks2, ex2 = watch.pick_dispatches(videos2, states, cfg, now, active_runs=False)
+    pids = {p["uuid"] for p in picks2}
+    check("watch: under-cap retried", "u0" in pids and "u4" in pids, f"({pids})")
+    check("watch: cap reached -> exhausted only",
+          [e["uuid"] for e in ex2] == ["u1"], f"({ex2})")
+    check("watch: needs-review never re-dispatched", "u2" not in pids)
+    check("watch: other classes untouched", "u3" not in pids and "u5" not in pids)
+    # 枠ゼロでも上限超過の記録は返る
+    cfg0 = dict(cfg, daily_upload_limit=0)
+    picks3, ex3 = watch.pick_dispatches(videos2, states, cfg0, now, active_runs=False)
+    check("watch: exhausted reported even with no allowance",
+          picks3 == [] and [e["uuid"] for e in ex3] == ["u1"])
 
 
 def test_mark_done_import():
