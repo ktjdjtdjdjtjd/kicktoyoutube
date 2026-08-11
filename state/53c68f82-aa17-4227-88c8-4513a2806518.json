@@ -9,5 +9,10 @@
   "dispatched_at": "2026-08-09T10:04:48.262511+00:00",
   "updated_at": "2026-08-09T10:52:31.362583+00:00",
   "yt_url": "https://www.youtube.com/watch?v=IsZ8Hh2fmlI",
-  "chapters_attempts": 1
+  "chapters_attempts": 1,
+  "chapters": {
+    "result": "done",
+    "at": "2026-08-11T10:19:31.369755+00:00",
+    "n": 11
+  }
 }
