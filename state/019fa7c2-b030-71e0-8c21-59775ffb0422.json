@@ -6,5 +6,10 @@
   "uuid": "019fa7c2-b030-71e0-8c21-59775ffb0422",
   "title": "初サミット参加 馴れ合い会場へ",
   "start_time": "2026-07-29",
-  "chapters_attempts": 1
+  "chapters_attempts": 1,
+  "chapters": {
+    "result": "done",
+    "at": "2026-08-11T03:02:37.280179+00:00",
+    "n": 16
+  }
 }
