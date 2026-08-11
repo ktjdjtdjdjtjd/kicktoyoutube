@@ -4,7 +4,9 @@
   "title": "明日は青森！　大阪最後の配信",
   "start_time": "2026-08-09 04:15:22",
   "duration_s": 20829.0,
-  "status": "dispatched",
+  "status": "done",
   "retries": 0,
-  "dispatched_at": "2026-08-11T07:48:23.034449+00:00"
+  "dispatched_at": "2026-08-11T07:48:23.034449+00:00",
+  "updated_at": "2026-08-11T09:23:58.837608+00:00",
+  "yt_url": "https://www.youtube.com/watch?v=ayTtGs_6Gnk"
 }
