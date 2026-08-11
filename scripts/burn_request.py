@@ -51,6 +51,8 @@ def plan_kick(video, cfg, outdir, limit_seconds):
     meta = resolve_meta(slug, uuid)
     if meta["is_live"]:
         sys.exit("error: VOD is still live")
+    if not meta.get("source"):
+        sys.exit("error: 動画の取得URLが無い (サブスク限定VODの可能性)")
     duration = meta["duration_s"]
     if limit_seconds:
         duration = min(duration, limit_seconds)

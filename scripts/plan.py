@@ -111,6 +111,33 @@ def main():
         raise RuntimeError("VOD is still live — abort")
     if meta["duration_s"] <= 0:
         raise RuntimeError("duration is 0 — VOD not finalized yet")
+    if not meta.get("source"):
+        # source無し = サブスク限定等でDL不能。台帳に記録して静かに終える
+        # (失敗のまま放置すると2〜12時間おきに永遠に再投入されるため)
+        from datetime import datetime, timezone
+        from repo_state import STATE_DIR, commit_paths
+        STATE_DIR.mkdir(exist_ok=True)
+        p = STATE_DIR / f"{a.uuid}.json"
+        prev = {}
+        if p.exists():
+            try:
+                prev = json.loads(p.read_text(encoding="utf-8"))
+            except Exception:
+                prev = {}
+        prev.update({"slug": a.slug, "uuid": a.uuid,
+                     "title": meta.get("title") or a.uuid,
+                     "start_time": str(meta.get("start_time") or ""),
+                     "duration_s": meta.get("duration_s"),
+                     "status": "skipped-subonly",
+                     "marked_at": datetime.now(timezone.utc).isoformat()})
+        p.write_text(json.dumps(prev, ensure_ascii=False, indent=2),
+                     encoding="utf-8")
+        commit_paths([p], f"state: {a.uuid[:8]} -> skipped-subonly", fatal=False)
+        gh_output("skip", "true")
+        gh_output("matrix", "[]")
+        print("source unavailable (subscriber-only?) — skip", file=sys.stderr)
+        return
+    gh_output("skip", "false")
     print(f"title={meta['title']} duration={meta['duration_s']}s "
           f"channel_id={meta['channel_id']} start={meta['start_time']}", file=sys.stderr)
 

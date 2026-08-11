@@ -4,7 +4,8 @@
   "title": "W杯決勝　スペインありがとう！！",
   "start_time": "2026-07-19 18:50:56",
   "duration_s": 16329.0,
-  "status": "dispatched",
+  "status": "skipped-subonly",
   "retries": 1,
-  "dispatched_at": "2026-08-11T12:30:40.688661+00:00"
+  "dispatched_at": "2026-08-11T12:30:40.688661+00:00",
+  "marked_at": "2026-08-11T13:34:39.335340+00:00"
 }

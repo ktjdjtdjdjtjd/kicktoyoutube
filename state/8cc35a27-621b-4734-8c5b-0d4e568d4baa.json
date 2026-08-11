@@ -4,7 +4,8 @@
   "title": "おはよー　２５日参加します",
   "start_time": "2026-07-13 21:29:51",
   "duration_s": 17418.0,
-  "status": "dispatched",
+  "status": "skipped-subonly",
   "retries": 1,
-  "dispatched_at": "2026-08-11T10:57:06.690853+00:00"
+  "dispatched_at": "2026-08-11T10:57:06.690853+00:00",
+  "marked_at": "2026-08-11T13:34:39.336840+00:00"
 }
