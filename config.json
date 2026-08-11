@@ -1,7 +1,8 @@
 {
   "channels": [
     "hashimotokun78",
-    "220ninimaru"
+    "220ninimaru",
+    "zingisukan2525"
   ],
   "format_height": 720,
   "segment_seconds": 5400,
@@ -57,6 +58,16 @@
         "キッカーズ",
         "かつき",
         "ににまる",
+        "Kick"
+      ]
+    },
+    "zingisukan2525": {
+      "yt_token_env": "YT_TOKEN_JSON_WAINAINA",
+      "title_template": "【ジンギスカン】{title}【{date_slash}】",
+      "description_template": "ジンギスカンのKICK配信の録画アーカイブです。\n\nタイムスタンプ▽\n\n\n元配信▽\n{title}\n{url}\n\n#キッカーズ #ジンギスカン",
+      "tags": [
+        "キッカーズ",
+        "ジンギスカン",
         "Kick"
       ]
     }
