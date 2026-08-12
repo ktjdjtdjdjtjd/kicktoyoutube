@@ -4,7 +4,9 @@
   "title": "みなさん、すいませんでした。",
   "start_time": "2026-08-05 06:22:09",
   "duration_s": 3756.0,
-  "status": "dispatched",
+  "status": "done",
   "retries": 0,
-  "dispatched_at": "2026-08-12T15:38:39.257416+00:00"
+  "dispatched_at": "2026-08-12T15:38:39.257416+00:00",
+  "updated_at": "2026-08-12T16:06:07.838202+00:00",
+  "yt_url": "https://www.youtube.com/watch?v=RwRiSSTsvu0"
 }
