@@ -4,7 +4,9 @@
   "title": "俺の後輩が問題行動を起こしたので説教します！",
   "start_time": "2026-07-26 06:05:50",
   "duration_s": 18895.0,
-  "status": "dispatched",
+  "status": "done",
   "retries": 0,
-  "dispatched_at": "2026-08-12T10:01:35.380500+00:00"
+  "dispatched_at": "2026-08-12T10:01:35.380500+00:00",
+  "updated_at": "2026-08-12T11:28:54.440002+00:00",
+  "yt_url": "https://www.youtube.com/watch?v=uzmWmNrXxwo"
 }
