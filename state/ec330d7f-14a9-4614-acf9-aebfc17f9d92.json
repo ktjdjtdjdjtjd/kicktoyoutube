@@ -4,7 +4,9 @@
   "title": "20年ぶりに青森にきた！トラブル発生中。",
   "start_time": "2026-08-13 06:00:45",
   "duration_s": 21340.0,
-  "status": "dispatched",
+  "status": "done",
   "retries": 0,
-  "dispatched_at": "2026-08-13T13:36:51.314217+00:00"
+  "dispatched_at": "2026-08-13T13:36:51.314217+00:00",
+  "updated_at": "2026-08-13T15:04:47.568298+00:00",
+  "yt_url": "https://www.youtube.com/watch?v=TFJhx0hCBDk"
 }
