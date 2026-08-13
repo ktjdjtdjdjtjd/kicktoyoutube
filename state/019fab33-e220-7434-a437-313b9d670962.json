@@ -6,5 +6,10 @@
   "uuid": "019fab33-e220-7434-a437-313b9d670962",
   "title": "初サミット 船釣り編",
   "start_time": "2026-07-31",
-  "chapters_attempts": 1
+  "chapters_attempts": 1,
+  "chapters": {
+    "result": "done",
+    "at": "2026-08-13T22:27:01.811320+00:00",
+    "n": 16
+  }
 }
