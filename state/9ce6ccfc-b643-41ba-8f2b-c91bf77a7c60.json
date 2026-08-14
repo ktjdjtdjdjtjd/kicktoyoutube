@@ -4,7 +4,9 @@
   "title": "人生初の山形にきたぞ",
   "start_time": "2026-08-14 00:03:57",
   "duration_s": 33645.0,
-  "status": "dispatched",
+  "status": "done",
   "retries": 0,
-  "dispatched_at": "2026-08-14T09:44:48.348524+00:00"
+  "dispatched_at": "2026-08-14T09:44:48.348524+00:00",
+  "updated_at": "2026-08-14T12:17:22.698009+00:00",
+  "yt_url": "https://www.youtube.com/watch?v=bbBbjUmoX4M"
 }
