@@ -4,7 +4,9 @@
   "title": "盛岡のわんこそばチャレンジ失敗に終わりました。",
   "start_time": "2026-08-15 02:34:40",
   "duration_s": 27294.0,
-  "status": "dispatched",
+  "status": "done",
   "retries": 0,
-  "dispatched_at": "2026-08-15T10:48:13.449125+00:00"
+  "dispatched_at": "2026-08-15T10:48:13.449125+00:00",
+  "updated_at": "2026-08-15T12:44:51.300466+00:00",
+  "yt_url": "https://www.youtube.com/watch?v=ckuF3sYhgnQ"
 }
