@@ -4,7 +4,9 @@
   "title": "【報告】糖尿病疑惑の診断結果。",
   "start_time": "2026-08-17 09:03:18",
   "duration_s": 20042.0,
-  "status": "dispatched",
+  "status": "done",
   "retries": 1,
-  "dispatched_at": "2026-08-17T20:43:28.579319+00:00"
+  "dispatched_at": "2026-08-17T20:43:28.579319+00:00",
+  "updated_at": "2026-08-17T22:16:19.389903+00:00",
+  "yt_url": "https://www.youtube.com/watch?v=M4v8FbBBRAY"
 }
