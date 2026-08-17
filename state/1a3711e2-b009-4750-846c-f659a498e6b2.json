@@ -4,7 +4,9 @@
   "title": "#day2 青森徒歩旅！",
   "start_time": "2026-08-17 06:00:24",
   "duration_s": 35796.0,
-  "status": "dispatched",
+  "status": "done",
   "retries": 0,
-  "dispatched_at": "2026-08-17T16:36:55.075736+00:00"
+  "dispatched_at": "2026-08-17T16:36:55.075736+00:00",
+  "updated_at": "2026-08-17T20:05:57.236921+00:00",
+  "yt_url": "https://www.youtube.com/watch?v=6cpMp1XHCtU"
 }
