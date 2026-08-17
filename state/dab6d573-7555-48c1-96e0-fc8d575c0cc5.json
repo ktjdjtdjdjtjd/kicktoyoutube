@@ -4,7 +4,9 @@
   "title": "青森徒歩旅！",
   "start_time": "2026-08-16 11:37:37",
   "duration_s": 38627.0,
-  "status": "dispatched",
+  "status": "done",
   "retries": 0,
-  "dispatched_at": "2026-08-16T22:49:07.072187+00:00"
+  "dispatched_at": "2026-08-16T22:49:07.072187+00:00",
+  "updated_at": "2026-08-17T02:26:58.020362+00:00",
+  "yt_url": "https://www.youtube.com/watch?v=m-3CR1mjLvA"
 }
