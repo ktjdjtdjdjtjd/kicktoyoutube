@@ -54,6 +54,25 @@ def to_png_bytes(raw):
     return out.getvalue()
 
 
+def convert_bytes(raw):
+    """webp等をffmpeg/PIL両対応の形へ。アニメ→GIF / 静止→PNG。
+    Kickが一部エモートをアニメWebPで配信するようになり、静止PNG化すると
+    アニメが失われる。アニメはGIFで保持する。戻り: (bytes, 'gif'|'png')。"""
+    from PIL import Image, ImageSequence
+    im = Image.open(io.BytesIO(raw))
+    animated = bool(getattr(im, "is_animated", False)) and getattr(im, "n_frames", 1) > 1
+    out = io.BytesIO()
+    if animated:
+        frames = [f.convert("RGBA") for f in ImageSequence.Iterator(im)]
+        durs = [(f.info.get("duration", 80) or 80)
+                for f in ImageSequence.Iterator(im)]
+        frames[0].save(out, "GIF", save_all=True, append_images=frames[1:],
+                       loop=0, duration=durs, disposal=2, transparency=0)
+        return out.getvalue(), "gif"
+    im.convert("RGBA").save(out, "PNG")
+    return out.getvalue(), "png"
+
+
 def download_missing(ids, emote_dir, session=None):
     """未取得のエモートを原本のままDLして蓄積 (GIFはアニメ保持のため<id>.gif)。
     新規保存したPathのリストを返す。"""
@@ -79,8 +98,10 @@ def download_missing(ids, emote_dir, session=None):
                 dest = emote_dir / f"{eid}.png"
                 dest.write_bytes(raw)
             else:
-                dest = emote_dir / f"{eid}.png"
-                dest.write_bytes(to_png_bytes(raw))
+                # webp等: アニメはGIF・静止はPNGで保存(アニメWebPの静止化を防ぐ)
+                data, ext = convert_bytes(raw)
+                dest = emote_dir / f"{eid}.{ext}"
+                dest.write_bytes(data)
             added.append(dest)
         except Exception as e:
             print(f"emote {eid}: {e} — skip", file=sys.stderr)
