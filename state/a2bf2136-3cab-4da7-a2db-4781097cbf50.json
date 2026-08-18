@@ -4,7 +4,9 @@
   "title": "みーちゃん捜索",
   "start_time": "2026-08-18 06:38:44",
   "duration_s": 18138.0,
-  "status": "dispatched",
+  "status": "done",
   "retries": 0,
-  "dispatched_at": "2026-08-18T12:40:49.586113+00:00"
+  "dispatched_at": "2026-08-18T12:40:49.586113+00:00",
+  "updated_at": "2026-08-18T14:09:23.407768+00:00",
+  "yt_url": "https://www.youtube.com/watch?v=yH_d16eaC9o"
 }
