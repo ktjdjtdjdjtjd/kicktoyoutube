@@ -4,7 +4,9 @@
   "title": "#day3 青森徒歩旅！ みんなうまみくんに電話できてずるい　俺だけブロック",
   "start_time": "2026-08-18 09:06:14",
   "duration_s": 2124.0,
-  "status": "dispatched",
+  "status": "done",
   "retries": 0,
-  "dispatched_at": "2026-08-18T10:03:11.539909+00:00"
+  "dispatched_at": "2026-08-18T10:03:11.539909+00:00",
+  "updated_at": "2026-08-18T10:25:59.598396+00:00",
+  "yt_url": "https://www.youtube.com/watch?v=t9E2l5131Bk"
 }
