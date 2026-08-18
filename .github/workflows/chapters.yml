@@ -39,4 +39,6 @@ jobs:
           YT_TOKEN_JSON_NINIMARU: ${{ secrets.YT_TOKEN_JSON_NINIMARU }}
           YT_TOKEN_JSON_WAINAINA: ${{ secrets.YT_TOKEN_JSON_WAINAINA }}
         run: |
+          # queue/push起動はチェックアウトが古いことがある(並走で処理済みを再選択する事故防止)
+          git fetch origin main && git checkout -B main origin/main
           PYTHONPATH=scripts python scripts/chapters.py --uuid "${{ inputs.uuid }}"
