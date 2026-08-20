@@ -35,7 +35,7 @@
   },
   "chapters": {
     "enabled": true,
-    "model": "gemini-2.5-flash",
+    "model": "gemini-flash-latest",
     "whisper_model": "small"
   },
   "channel_settings": {

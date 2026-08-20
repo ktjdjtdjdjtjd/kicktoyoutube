@@ -140,8 +140,11 @@ def transcribe(path, model_size="small", chunk_s=1800):
     return lines, total
 
 
-MODEL_FALLBACKS = ["gemini-2.5-flash", "gemini-2.0-flash", "gemini-1.5-flash",
-                   "gemini-flash-latest"]
+# バージョン固定名(gemini-2.5-flash等)は本番で404になった(モデル廃止)。
+# Googleが維持する -latest エイリアス系のみ使う(gemini-flash-latestは本番で疎通確認済み)。
+# 404のモデルはリトライロジックが自動でスキップするので、多めに並べても害はない。
+MODEL_FALLBACKS = ["gemini-flash-latest", "gemini-flash-lite-latest",
+                   "gemini-pro-latest", "gemini-2.5-flash"]
 
 
 def bucketize(lines, bucket=60, max_chars=120):
