@@ -254,6 +254,13 @@ def test_chapters_logic():
     merged.sort(key=lambda x: x[0])
     check("ch: finalize merge+sort", [t for t, _ in merged] == [5.0, 10.0, 2701.0, 2705.0],
           f"({merged})")
+    # 文字起こし保管: ヘッダ(title/url)付き・各行 [HH:MM:SS] 本文・時刻から復元可能
+    tx = chapters.format_transcript(
+        {"title": "配信タイトル", "yt_url": "https://x", "slug": "hashimotokun78",
+         "uuid": "u1"}, [[0.0, "はじまり"], [3725.0, "ラーメン"]])
+    check("ch: transcript format", tx.startswith("# 配信タイトル\nhttps://x")
+          and "[00:00:00] はじまり" in tx and "[01:02:05] ラーメン" in tx
+          and chapters.parse_ts("01:02:05") == 3725, f"({tx!r})")
     desc = "はしもと君のKICK配信の録画アーカイブです。\n\nタイムスタンプ▽\n\n\n元配信▽\nタイトル\nhttps://x\n\n#タグ"
     new = chapters.inject_description(desc, [(0, "配信開始"), (300, "移動")])
     check("ch: inject keeps head/tail",

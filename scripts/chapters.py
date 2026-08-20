@@ -298,6 +298,32 @@ def load_state_by_uuid(uuid):
     return None, None
 
 
+TRANSCRIPT_DIR = Path("transcripts")
+
+
+def format_transcript(st, lines):
+    """保存用の人が読める文字起こしテキストを組み立てる。
+    アーカイブ内は全行 HH:MM:SS 固定 (表記統一でgrep・再パースしやすい)。"""
+    def hms_full(sec):
+        s = int(sec)
+        return f"{s // 3600:02d}:{(s % 3600) // 60:02d}:{s % 60:02d}"
+    head = (f"# {st.get('title', '')}\n{st.get('yt_url', '')}\n"
+            f"slug: {st.get('slug', '')}  lines: {len(lines)}\n\n")
+    body = "\n".join(f"[{hms_full(t)}] {txt}" for t, txt in lines)
+    return head + body + "\n"
+
+
+def save_transcript(st, lines):
+    """結合済み文字起こしを transcripts/<uuid>.md に永続保存 (人が読める形+再利用可)。
+    Geminiより前に呼ぶことで、章立てが失敗しても文字起こしの成果を失わない。"""
+    TRANSCRIPT_DIR.mkdir(parents=True, exist_ok=True)
+    p = TRANSCRIPT_DIR / f"{st.get('uuid', 'unknown')}.md"
+    p.write_text(format_transcript(st, lines), encoding="utf-8")
+    commit_paths([p], f"transcript: {st.get('uuid', '')[:8]} ({len(lines)} lines)",
+                 fatal=False)
+    return p
+
+
 def _mark(path, st, result, extra=None):
     st["chapters"] = {"result": result,
                       "at": datetime.now(timezone.utc).isoformat(), **(extra or {})}
@@ -312,6 +338,7 @@ def _finish_with_gemini(path, st, lines, duration, cfg, ccfg, api_key, dry_run):
     if len(lines) < 20:
         _mark(path, st, "skipped-no-speech")
         return
+    save_transcript(st, lines)  # 章立ての前に保存 (Gemini失敗でも成果を残す)
     try:
         raw = gemini_chapters(lines, api_key, ccfg.get("model", "gemini-flash-latest"))
     except (urllib.error.HTTPError, urllib.error.URLError) as e:
