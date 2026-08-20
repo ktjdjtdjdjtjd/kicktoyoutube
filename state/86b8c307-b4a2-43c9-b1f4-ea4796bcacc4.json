@@ -4,7 +4,9 @@
   "title": "みんな僕の青森に興味ないみたいなんで歩いて大阪までかえりまーーーーーーーーーーーーーす",
   "start_time": "2026-08-18 09:47:04",
   "duration_s": 28591.0,
-  "status": "dispatched",
+  "status": "done",
   "retries": 3,
-  "dispatched_at": "2026-08-20T01:37:52.196505+00:00"
+  "dispatched_at": "2026-08-20T01:37:52.196505+00:00",
+  "updated_at": "2026-08-20T04:44:55.142198+00:00",
+  "yt_url": "https://www.youtube.com/watch?v=tpV16oTcWZw"
 }
