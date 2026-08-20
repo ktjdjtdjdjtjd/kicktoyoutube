@@ -15,6 +15,7 @@ import os
 import re
 import subprocess
 import sys
+import urllib.error
 import urllib.request
 from datetime import datetime, timezone
 from pathlib import Path
@@ -171,26 +172,40 @@ def gemini_chapters(lines, api_key, model):
         "contents": [{"parts": [{"text": PROMPT.format(transcript=transcript)}]}],
         "generationConfig": {"temperature": 0.2},
     }).encode()
+    import time
     models = [model] + [m for m in MODEL_FALLBACKS if m != model]
+    # 全モデルを一巡してもレート制限/5xxが続くなら、モデル巡回ごと数回リトライする
+    # (429=レート制限, 500/502/503/504=Geminiの一時障害。どちらも待てば回復する)
     last_err = None
-    for m in models:
-        for attempt in range(1, 4):
-            req = urllib.request.Request(
-                GEMINI_URL.format(model=m, key=api_key), data=body,
-                headers={"Content-Type": "application/json"})
-            try:
-                with urllib.request.urlopen(req, timeout=300) as r:
-                    resp = json.loads(r.read())
-                print(f"gemini model: {m}", file=sys.stderr)
-                return resp["candidates"][0]["content"]["parts"][0]["text"]
-            except urllib.error.HTTPError as e:
-                print(f"gemini {m}: HTTP {e.code} (attempt {attempt})", file=sys.stderr)
-                last_err = e
-                if e.code == 429 and attempt < 3:
-                    import time
-                    time.sleep(75)
-                    continue
-                break  # 404/400等 → 次のモデル候補へ
+    for cycle in range(3):
+        transient_all = True
+        for m in models:
+            for attempt in range(1, 4):
+                req = urllib.request.Request(
+                    GEMINI_URL.format(model=m, key=api_key), data=body,
+                    headers={"Content-Type": "application/json"})
+                try:
+                    with urllib.request.urlopen(req, timeout=300) as r:
+                        resp = json.loads(r.read())
+                    print(f"gemini model: {m}", file=sys.stderr)
+                    return resp["candidates"][0]["content"]["parts"][0]["text"]
+                except urllib.error.HTTPError as e:
+                    print(f"gemini {m}: HTTP {e.code} (cycle {cycle} attempt {attempt})",
+                          file=sys.stderr)
+                    last_err = e
+                    if e.code in (429, 500, 502, 503, 504) and attempt < 3:
+                        time.sleep(75 if e.code == 429 else 20)
+                        continue
+                    if e.code not in (429, 500, 502, 503, 504):
+                        transient_all = False  # 404/400等は待っても直らない
+                    break  # 次のモデル候補へ
+                except urllib.error.URLError as e:
+                    print(f"gemini {m}: URLError {e} (cycle {cycle})", file=sys.stderr)
+                    last_err = e
+                    break
+        if not transient_all:
+            break  # 一時障害でない失敗が混じっていれば巡回しても無駄
+        time.sleep(30)  # 全モデル一時障害 → 少し待って巡回リトライ
     raise last_err
 
 
@@ -310,7 +325,22 @@ def main():
     if len(lines) < 20:
         mark("skipped-no-speech")
         return
-    raw = gemini_chapters(lines, api_key, ccfg.get("model", "gemini-2.5-flash"))
+    try:
+        raw = gemini_chapters(lines, api_key, ccfg.get("model", "gemini-2.5-flash"))
+    except (urllib.error.HTTPError, urllib.error.URLError) as e:
+        # Geminiの一時障害(429/5xx/接続不可)は再試行で直る。この回の試行は
+        # カウントに数えず(消費を戻す)、次サイクルで再挑戦する(赤failにしない)
+        code = getattr(e, "code", None)
+        if code is None or code in (429, 500, 502, 503, 504):
+            if not a.dry_run:
+                st["chapters_attempts"] = max(0, int(st.get("chapters_attempts", 1)) - 1)
+                path.write_text(json.dumps(st, ensure_ascii=False, indent=2),
+                                encoding="utf-8")
+                commit_paths([path], f"state: chapters gemini一時障害でリトライ待ち "
+                                     f"({st.get('uuid', '')[:8]})", fatal=False)
+            print(f"gemini transient failure ({code}) — 次サイクルで再試行", file=sys.stderr)
+            return  # exit 0 = 赤failにしない
+        raise
     print("gemini raw:\n" + raw[:1000], file=sys.stderr)
     chapters = validate_chapters(raw, duration)
     if len(chapters) < 3:
