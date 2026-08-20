@@ -98,6 +98,18 @@ def download_audio(source_url, dest):
                     "-o", dest, source_url], check=True)
 
 
+def download_window(source_url, start, end, dest):
+    """sourceの [start,end) 区間だけを最低画質でDL (文字起こしは音声のみで足りる)。
+    HLSでも --download-sections が該当フラグメントだけ取得するため帯域を抑えられる。"""
+    subprocess.run(["yt-dlp", "--impersonate", "chrome",
+                    "-f", "wa*/w/b", "--no-part",
+                    "--download-sections", f"*{int(start)}-{int(end)}",
+                    "--retries", "30", "--fragment-retries", "60",
+                    "--concurrent-fragments", "4",
+                    "--merge-output-format", "mp4",
+                    "-o", dest, source_url], check=True)
+
+
 def extract_audio(src, dest="audio.wav"):
     """動画→16kHzモノラルwav。長尺VODの一括デコードによるメモリ圧を避ける下拵え。"""
     subprocess.run(["ffmpeg", "-y", "-hide_banner", "-loglevel", "error",
@@ -274,68 +286,38 @@ def update_youtube_description(video_id, chapters, token_env="YT_TOKEN_JSON"):
                             body={"id": video_id, "snippet": snippet}).execute()
 
 
-def main():
-    ap = argparse.ArgumentParser()
-    ap.add_argument("--config", default="config.json")
-    ap.add_argument("--uuid", default="")
-    ap.add_argument("--dry-run", action="store_true")
-    a = ap.parse_args()
-    cfg = kick_api.load_config(a.config)
-    ccfg = cfg.get("chapters", {})
-    if not ccfg.get("enabled", True):
-        print("chapters disabled")
-        return
-    api_key = os.environ.get("GEMINI_API_KEY", "")
-    if not api_key:
-        print("GEMINI_API_KEY not set — skip")
-        return
+def load_state_by_uuid(uuid):
+    """uuidから状態ファイル(path, dict)を引く。finalizeが素の再取得に使う。"""
+    for p in STATE_DIR.glob("*.json"):
+        try:
+            d = json.loads(p.read_text(encoding="utf-8"))
+        except Exception:
+            continue
+        if d.get("uuid") == uuid:
+            return p, d
+    return None, None
 
-    path, st = pick_candidate(a.uuid or None)
-    if not st:
-        print("no candidate")
-        return
-    print(f"target: {st.get('title')} {st['yt_url']}", file=sys.stderr)
 
-    # 試行回数を先に記録 (ランナー強制終了などジョブごと死ぬ失敗も数える)
-    if not a.dry_run:
-        st["chapters_attempts"] = int(st.get("chapters_attempts", 0)) + 1
-        path.write_text(json.dumps(st, ensure_ascii=False, indent=2),
-                        encoding="utf-8")
-        commit_paths([path], f"state: chapters attempt {st['chapters_attempts']} "
-                             f"({st.get('uuid', '')[:8]})", fatal=False)
+def _mark(path, st, result, extra=None):
+    st["chapters"] = {"result": result,
+                      "at": datetime.now(timezone.utc).isoformat(), **(extra or {})}
+    path.write_text(json.dumps(st, ensure_ascii=False, indent=2), encoding="utf-8")
+    commit_paths([path], f"state: chapters {result} ({st.get('uuid', '')[:8]})",
+                 fatal=False)
 
-    def mark(result, extra=None):
-        st["chapters"] = {"result": result,
-                          "at": datetime.now(timezone.utc).isoformat(), **(extra or {})}
-        path.write_text(json.dumps(st, ensure_ascii=False, indent=2), encoding="utf-8")
-        commit_paths([path], f"state: chapters {result} ({st.get('uuid', '')[:8]})",
-                     fatal=False)
 
-    try:
-        meta = None
-        from plan import resolve_meta
-        meta = resolve_meta(st["slug"], st["uuid"])
-        if not meta.get("source"):
-            raise RuntimeError("source unavailable (VOD expired?)")
-    except Exception as e:
-        print(f"meta failed: {e}", file=sys.stderr)
-        mark("skipped-no-source")
-        return
-
-    download_audio(meta["source"], "low.mp4")
-    audio = extract_audio("low.mp4")
-    lines, duration = transcribe(audio, ccfg.get("whisper_model", "small"))
+def _finish_with_gemini(path, st, lines, duration, cfg, ccfg, api_key, dry_run):
+    """文字起こし→Gemini章立て→検証→YouTube説明欄更新→状態確定。
+    Geminiの一時障害(429/5xx/接続不可)なら試行消費を戻して exit 0 (赤failにしない)。"""
     if len(lines) < 20:
-        mark("skipped-no-speech")
+        _mark(path, st, "skipped-no-speech")
         return
     try:
-        raw = gemini_chapters(lines, api_key, ccfg.get("model", "gemini-2.5-flash"))
+        raw = gemini_chapters(lines, api_key, ccfg.get("model", "gemini-flash-latest"))
     except (urllib.error.HTTPError, urllib.error.URLError) as e:
-        # Geminiの一時障害(429/5xx/接続不可)は再試行で直る。この回の試行は
-        # カウントに数えず(消費を戻す)、次サイクルで再挑戦する(赤failにしない)
         code = getattr(e, "code", None)
         if code is None or code in (429, 500, 502, 503, 504):
-            if not a.dry_run:
+            if not dry_run:
                 st["chapters_attempts"] = max(0, int(st.get("chapters_attempts", 1)) - 1)
                 path.write_text(json.dumps(st, ensure_ascii=False, indent=2),
                                 encoding="utf-8")
@@ -347,20 +329,173 @@ def main():
     print("gemini raw:\n" + raw[:1000], file=sys.stderr)
     chapters = validate_chapters(raw, duration)
     if len(chapters) < 3:
-        mark("skipped-too-few")
+        _mark(path, st, "skipped-too-few")
         return
     print("chapters:", file=sys.stderr)
     for s, label in chapters:
         print(f"  {hms(s)} {label}", file=sys.stderr)
-    if a.dry_run:
+    if dry_run:
         print("dry-run: not updating")
         return
     video_id = st["yt_url"].split("v=")[-1]
     token_env = ((cfg.get("channel_settings") or {}).get(st["slug"], {})
                  .get("yt_token_env", "YT_TOKEN_JSON"))
     update_youtube_description(video_id, chapters, token_env)
-    mark("done", {"n": len(chapters)})
+    _mark(path, st, "done", {"n": len(chapters)})
     print("description updated")
+
+
+def cmd_plan(cfg, ccfg, only_uuid, dry_run, out_dir="out"):
+    """候補を1本選び、試行を消費し、文字起こしを区間分割したmatrixを出力する。
+    resolve_metaは duration_s と source を返すのでffprobe不要。"""
+    from plan import gh_output, plan_segments, resolve_meta
+    path, st = pick_candidate(only_uuid or None)
+    if not st:
+        print("no candidate")
+        gh_output("skip", "true")
+        return
+    print(f"target: {st.get('title')} {st['yt_url']}", file=sys.stderr)
+    if not dry_run:
+        st["chapters_attempts"] = int(st.get("chapters_attempts", 0)) + 1
+        path.write_text(json.dumps(st, ensure_ascii=False, indent=2), encoding="utf-8")
+        commit_paths([path], f"state: chapters attempt {st['chapters_attempts']} "
+                             f"({st.get('uuid', '')[:8]})", fatal=False)
+    try:
+        meta = resolve_meta(st["slug"], st["uuid"])
+        if not meta.get("source") or meta.get("duration_s", 0) <= 0:
+            raise RuntimeError("source/duration unavailable (VOD expired?)")
+    except Exception as e:
+        print(f"meta failed: {e}", file=sys.stderr)
+        _mark(path, st, "skipped-no-source")
+        gh_output("skip", "true")
+        return
+    seg_s = int(ccfg.get("transcribe_segment_seconds", 2700))
+    segs = plan_segments(meta["duration_s"], seg_s)
+    token_env = ((cfg.get("channel_settings") or {}).get(st["slug"], {})
+                 .get("yt_token_env", "YT_TOKEN_JSON"))
+    Path(out_dir).mkdir(parents=True, exist_ok=True)
+    (Path(out_dir) / "chapters_plan.json").write_text(json.dumps({
+        "uuid": st["uuid"], "slug": st["slug"], "yt_url": st["yt_url"],
+        "duration_s": meta["duration_s"], "token_env": token_env,
+        "n_segments": len(segs),
+    }, ensure_ascii=False), encoding="utf-8")
+    gh_output("skip", "false")
+    gh_output("uuid", st["uuid"])
+    gh_output("slug", st["slug"])
+    gh_output("matrix", json.dumps(segs))
+    print(f"plan: {len(segs)} segments x {seg_s}s (duration {meta['duration_s']:.0f}s)",
+          file=sys.stderr)
+
+
+def cmd_transcribe(ccfg, slug, uuid, idx, start, end, out_dir="segs"):
+    """区間 [start,end) だけDL→文字起こしし、絶対時刻の行を seg_NNN.json に出力。
+    source は毎回 resolve_meta で取り直す (署名URL失効に強くする)。"""
+    from plan import resolve_meta
+    meta = resolve_meta(slug, uuid)
+    if not meta.get("source"):
+        raise RuntimeError("source unavailable")
+    win = f"win_{idx:03d}.mp4"
+    download_window(meta["source"], start, end, win)
+    audio = extract_audio(win, f"win_{idx:03d}.wav")
+    lines, _ = transcribe(audio, ccfg.get("whisper_model", "small"))
+    Path(audio).unlink(missing_ok=True)
+    abs_lines = [[float(start) + t, txt] for t, txt in lines]
+    Path(out_dir).mkdir(parents=True, exist_ok=True)
+    (Path(out_dir) / f"seg_{idx:03d}.json").write_text(
+        json.dumps({"idx": idx, "start": start, "end": end, "lines": abs_lines},
+                   ensure_ascii=False), encoding="utf-8")
+    print(f"transcribe seg {idx}: {len(abs_lines)} lines [{start:.0f}-{end:.0f}s]",
+          file=sys.stderr)
+
+
+def cmd_finalize(cfg, ccfg, api_key, dry_run, plan_dir="out", seg_dir="segs"):
+    """各区間の seg_*.json を結合→Gemini章立て→説明欄更新。欠損区間があっても
+    残りで続行する (単一区間のDL失敗で全体を赤failにして試行を溶かさない)。"""
+    plan_file = Path(plan_dir) / "chapters_plan.json"
+    if not plan_file.exists():
+        print("no chapters_plan.json — nothing to finalize")
+        return
+    plan = json.loads(plan_file.read_text(encoding="utf-8"))
+    path, st = load_state_by_uuid(plan["uuid"])
+    if not st:
+        print(f"state not found for {plan['uuid']}", file=sys.stderr)
+        return
+    seg_files = sorted(Path(seg_dir).rglob("seg_*.json"))
+    lines = []
+    for f in seg_files:
+        try:
+            lines.extend(json.loads(f.read_text(encoding="utf-8")).get("lines", []))
+        except Exception as e:
+            print(f"{f}: {e} — skip", file=sys.stderr)
+    lines.sort(key=lambda x: x[0])
+    got, want = len(seg_files), int(plan.get("n_segments", 0))
+    print(f"finalize: {len(lines)} lines from {got}/{want} segments", file=sys.stderr)
+    if want and got < want:
+        print(f"WARNING: {want - got} 区間が欠損 — 残りで続行", file=sys.stderr)
+    _finish_with_gemini(path, st, lines, float(plan["duration_s"]),
+                        cfg, ccfg, api_key, dry_run)
+
+
+def cmd_all(cfg, ccfg, api_key, only_uuid, dry_run):
+    """単一ジョブで一気通貫 (ローカル/dispatch用の後方互換パス)。"""
+    from plan import resolve_meta
+    path, st = pick_candidate(only_uuid or None)
+    if not st:
+        print("no candidate")
+        return
+    print(f"target: {st.get('title')} {st['yt_url']}", file=sys.stderr)
+    if not dry_run:
+        st["chapters_attempts"] = int(st.get("chapters_attempts", 0)) + 1
+        path.write_text(json.dumps(st, ensure_ascii=False, indent=2), encoding="utf-8")
+        commit_paths([path], f"state: chapters attempt {st['chapters_attempts']} "
+                             f"({st.get('uuid', '')[:8]})", fatal=False)
+    try:
+        meta = resolve_meta(st["slug"], st["uuid"])
+        if not meta.get("source"):
+            raise RuntimeError("source unavailable (VOD expired?)")
+    except Exception as e:
+        print(f"meta failed: {e}", file=sys.stderr)
+        _mark(path, st, "skipped-no-source")
+        return
+    download_audio(meta["source"], "low.mp4")
+    audio = extract_audio("low.mp4")
+    lines, duration = transcribe(audio, ccfg.get("whisper_model", "small"))
+    _finish_with_gemini(path, st, lines, duration, cfg, ccfg, api_key, dry_run)
+
+
+def main():
+    ap = argparse.ArgumentParser()
+    ap.add_argument("--config", default="config.json")
+    ap.add_argument("--uuid", default="")
+    ap.add_argument("--dry-run", action="store_true")
+    ap.add_argument("--mode", default="all",
+                    choices=["all", "plan", "transcribe", "finalize"])
+    ap.add_argument("--slug", default="")
+    ap.add_argument("--idx", type=int, default=0)
+    ap.add_argument("--start", type=float, default=0.0)
+    ap.add_argument("--end", type=float, default=0.0)
+    a = ap.parse_args()
+    cfg = kick_api.load_config(a.config)
+    ccfg = cfg.get("chapters", {})
+    if not ccfg.get("enabled", True):
+        print("chapters disabled")
+        return
+
+    if a.mode == "transcribe":
+        cmd_transcribe(ccfg, a.slug, a.uuid, a.idx, a.start, a.end)
+        return
+    if a.mode == "plan":
+        cmd_plan(cfg, ccfg, a.uuid, a.dry_run)
+        return
+
+    api_key = os.environ.get("GEMINI_API_KEY", "")
+    if not api_key:
+        print("GEMINI_API_KEY not set — skip")
+        return
+    if a.mode == "finalize":
+        cmd_finalize(cfg, ccfg, api_key, a.dry_run)
+    else:
+        cmd_all(cfg, ccfg, api_key, a.uuid or None, a.dry_run)
 
 
 if __name__ == "__main__":

@@ -1,8 +1,13 @@
 name: chapters
-# 投稿済み動画のタイムスタンプ自動生成 (3時間おきに未処理の1本を処理)
+# 投稿済み動画のタイムスタンプ自動生成。
+# plan(1本選定+区間分割) → transcribe(区間ごとにランナー並列で文字起こし) → finalize(結合+Gemini章立て+説明欄更新)。
+# 文字起こしが支配的コスト(8h級で全体の約8割)のため、区間を複数ランナーへ散らして反映までの時間を短縮する。
 on:
   schedule:
     - cron: "17 */3 * * *"
+  push:
+    paths:
+      - "state/**"
   workflow_dispatch:
     inputs:
       uuid:
@@ -18,9 +23,43 @@ concurrency:
   cancel-in-progress: false
 
 jobs:
-  chapters:
+  plan:
     runs-on: ubuntu-latest
-    timeout-minutes: 350
+    timeout-minutes: 30
+    outputs:
+      skip: ${{ steps.plan.outputs.skip }}
+      matrix: ${{ steps.plan.outputs.matrix }}
+      slug: ${{ steps.plan.outputs.slug }}
+      uuid: ${{ steps.plan.outputs.uuid }}
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262  # v4
+      - uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065  # v5
+        with:
+          python-version: "3.12"
+      - run: pip install --quiet curl_cffi==0.14.0 "yt-dlp[default,curl-cffi]==2026.7.4"
+      - name: Pick candidate + split into transcription segments
+        id: plan
+        run: |
+          # push/schedule起動はチェックアウトが古いことがある(並走で処理済みを再選択する事故防止)
+          git fetch origin main && git checkout -B main origin/main
+          PYTHONPATH=scripts python scripts/chapters.py --mode plan --uuid "${{ inputs.uuid }}"
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02  # v4
+        if: steps.plan.outputs.skip != 'true'
+        with:
+          name: chapters-plan
+          path: out/chapters_plan.json
+          retention-days: 3
+
+  transcribe:
+    needs: plan
+    if: needs.plan.outputs.skip != 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 120
+    strategy:
+      fail-fast: false
+      max-parallel: 12
+      matrix:
+        seg: ${{ fromJson(needs.plan.outputs.matrix) }}
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262  # v4
       - uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065  # v5
@@ -28,17 +67,49 @@ jobs:
           python-version: "3.12"
       - run: |
           pip install --quiet curl_cffi==0.14.0 "yt-dlp[default,curl-cffi]==2026.7.4" \
-            faster-whisper==1.2.1 \
-            google-auth==2.53.0 google-auth-httplib2==0.3.1 google-api-python-client==2.194.0
+            faster-whisper==1.2.1
       - name: Install ffmpeg (ubuntu-24.04ランナーは未搭載)
         run: sudo apt-get update -qq && sudo apt-get install -y -qq ffmpeg
-      - name: Generate chapters
+      - name: Transcribe segment
+        run: |
+          PYTHONPATH=scripts python scripts/chapters.py --mode transcribe \
+            --slug "${{ needs.plan.outputs.slug }}" --uuid "${{ needs.plan.outputs.uuid }}" \
+            --idx "${{ matrix.seg.idx }}" \
+            --start "${{ matrix.seg.start }}" --end "${{ matrix.seg.end }}"
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02  # v4
+        with:
+          name: chapters-seg-${{ matrix.seg.idx }}
+          path: segs/seg_*.json
+          retention-days: 1
+
+  finalize:
+    needs: [plan, transcribe]
+    # 一部区間が落ちても残りで章立てする(単一DL失敗で試行を溶かさない)。planが成功した時だけ動く。
+    if: ${{ !cancelled() && needs.plan.result == 'success' && needs.plan.outputs.skip != 'true' }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262  # v4
+      - uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065  # v5
+        with:
+          python-version: "3.12"
+      - run: |
+          pip install --quiet curl_cffi==0.14.0 \
+            google-auth==2.53.0 google-auth-httplib2==0.3.1 google-api-python-client==2.194.0
+      - name: Fresh checkout (planのattempt++を確実に反映)
+        run: git fetch origin main && git checkout -B main origin/main
+      - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093  # v4
+        with:
+          name: chapters-plan
+          path: out
+      - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093  # v4
+        with:
+          pattern: chapters-seg-*
+          path: segs
+      - name: Merge transcript + Gemini chapters + update description
         env:
           GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
           YT_TOKEN_JSON: ${{ secrets.YT_TOKEN_JSON }}
           YT_TOKEN_JSON_NINIMARU: ${{ secrets.YT_TOKEN_JSON_NINIMARU }}
           YT_TOKEN_JSON_WAINAINA: ${{ secrets.YT_TOKEN_JSON_WAINAINA }}
-        run: |
-          # queue/push起動はチェックアウトが古いことがある(並走で処理済みを再選択する事故防止)
-          git fetch origin main && git checkout -B main origin/main
-          PYTHONPATH=scripts python scripts/chapters.py --uuid "${{ inputs.uuid }}"
+        run: PYTHONPATH=scripts python scripts/chapters.py --mode finalize

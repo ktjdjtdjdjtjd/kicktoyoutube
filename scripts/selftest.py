@@ -239,6 +239,21 @@ def test_chapters_logic():
                            bucket=60, max_chars=50)
     check("ch: bucketize merge+cap", b[0] == (0, "あ い") and b[1][0] == 60
           and len(b[1][1]) == 50, f"({b})")
+    # 並列文字起こし: 区間分割が1波(<=12)に収まり、各区間が動画末尾まで連続すること
+    import plan as _plan
+    segs = _plan.plan_segments(31858, 2700)  # 8.85h VOD
+    check("ch: transcribe segs one-wave", len(segs) <= 12
+          and segs[0]["start"] == 0 and segs[-1]["end"] == 31858
+          and all(segs[i]["end"] == segs[i + 1]["start"] for i in range(len(segs) - 1)),
+          f"(n={len(segs)})")
+    # finalize の結合: 区間ファイルを絶対時刻でソート統合 (順不同・区間内も順不同を許容)
+    merged = []
+    for s in [{"lines": [[2705.0, "後半A"], [2701.0, "後半B"]]},
+              {"lines": [[10.0, "前半A"], [5.0, "前半B"]]}]:
+        merged.extend(s["lines"])
+    merged.sort(key=lambda x: x[0])
+    check("ch: finalize merge+sort", [t for t, _ in merged] == [5.0, 10.0, 2701.0, 2705.0],
+          f"({merged})")
     desc = "はしもと君のKICK配信の録画アーカイブです。\n\nタイムスタンプ▽\n\n\n元配信▽\nタイトル\nhttps://x\n\n#タグ"
     new = chapters.inject_description(desc, [(0, "配信開始"), (300, "移動")])
     check("ch: inject keeps head/tail",
