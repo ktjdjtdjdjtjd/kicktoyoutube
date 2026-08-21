@@ -4,7 +4,9 @@
   "title": "風船割られたら一駅戻る山手線一周！　渋谷スタート",
   "start_time": "2026-08-21 03:25:09",
   "duration_s": 28161.0,
-  "status": "dispatched",
+  "status": "done",
   "retries": 0,
-  "dispatched_at": "2026-08-21T11:52:25.117601+00:00"
+  "dispatched_at": "2026-08-21T11:52:25.117601+00:00",
+  "updated_at": "2026-08-21T16:06:10.135253+00:00",
+  "yt_url": "https://www.youtube.com/watch?v=2dr_o76D-8c"
 }
