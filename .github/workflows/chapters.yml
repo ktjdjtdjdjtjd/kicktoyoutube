@@ -19,7 +19,9 @@ permissions:
   contents: write
 
 concurrency:
-  group: chapters
+  # uuid指定のdispatchは動画ごとに独立させる(まとめ処理で並列に流すため)。
+  # schedule/pushは候補を自動選択するので従来どおり直列 (同じ動画の二重処理を防ぐ)。
+  group: chapters-${{ inputs.uuid || 'auto' }}
   cancel-in-progress: false
 
 jobs:
