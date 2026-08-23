@@ -4,7 +4,9 @@
   "title": "高尾にきた！トラブル発生中。",
   "start_time": "2026-08-23 04:30:28",
   "duration_s": 47141.0,
-  "status": "dispatched",
+  "status": "done",
   "retries": 0,
-  "dispatched_at": "2026-08-23T18:00:28.542169+00:00"
+  "dispatched_at": "2026-08-23T18:00:28.542169+00:00",
+  "updated_at": "2026-08-23T22:56:13.210082+00:00",
+  "yt_url": "https://www.youtube.com/watch?v=tWkgpjRXxe8"
 }
