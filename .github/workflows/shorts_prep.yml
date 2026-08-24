@@ -1,7 +1,21 @@
 name: shorts_prep
 # ショート下書き素材の一括生成: 採用区間の部分DL+whisper字幕+タイトル案 → artifact返却
 on:
+  # URL を渡すだけで 候補選定→素材化→縦型下書き まで通す(区間は自動で選ばれる)
   workflow_dispatch:
+    inputs:
+      video:
+        description: "VOD URL (kick / twitch)"
+        required: true
+      platform:
+        description: "kick | twitch (空ならURLから判定)"
+        required: false
+        default: ""
+      n:
+        description: "作る本数"
+        required: false
+        default: "8"
+  # 手で区間を決めた依頼はこれまで通り request.json を push する
   push:
     paths:
       - "queue_shorts/request.json"
@@ -39,6 +53,16 @@ jobs:
           if [ "$got" != "$FONT_BLOB_SHA" ]; then
             echo "font hash mismatch: $got"; exit 1
           fi
+      # 入力は env 経由で渡す(run に直接展開するとURL文字列がシェルに解釈される)
+      - name: Build request from inputs
+        if: github.event_name == 'workflow_dispatch'
+        env:
+          IN_VIDEO: ${{ inputs.video }}
+          IN_PLATFORM: ${{ inputs.platform }}
+          IN_N: ${{ inputs.n }}
+        run: |
+          python scripts/shorts_request.py \
+            --video "$IN_VIDEO" --platform "$IN_PLATFORM" --n "$IN_N"
       # segments 未指定の依頼は、チャットの盛り上がりから区間を自動で選ぶ。
       # 選定ロジックは手元の候補ボードからの移植(実データ20件で結果一致を確認済み)
       - name: Pick candidates (segments 未指定のときだけ)

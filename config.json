@@ -22,6 +22,10 @@
   "encode_preset": "veryfast",
   "encode_crf": "23",
   "backlog": true,
+  "shorts_channels": [
+    "zingisukan2525"
+  ],
+  "shorts_n": 8,
   "daily_upload_limit": 12,
   "max_inflight": 3,
   "dispatch_batch": 2,

@@ -168,6 +168,16 @@ def run(cmd, check=True):
     return subprocess.run(cmd, check=check)
 
 
+def shorts_targets(picks, cfg):
+    """ショート下書きを回すVOD。config.shorts_channels に入れたチャンネルだけ。
+
+    アーカイブ(process)は全チャンネルを回すが、ショート候補は自分が編集する
+    チャンネルにしか要らない。未設定なら何もしない。
+    """
+    chans = set(cfg.get("shorts_channels") or [])
+    return [c for c in picks if c.get("slug") in chans]
+
+
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--config", default="config.json")
@@ -253,6 +263,17 @@ def main():
         run(["gh", "workflow", "run", "process.yml",
              "-f", f"slug={c['slug']}", "-f", f"uuid={c['uuid']}"])
         print(f"dispatched: {c['slug']}/{c['uuid']} {c['title']}")
+
+    # ショート候補の下書き。投稿しない別軸なので、ここが失敗してもアーカイブ本線は
+    # 止めない (check=False)。stateも持たない = 取りこぼしても次の配信で作り直せる
+    shorts_n = int(cfg.get("shorts_n", 8))
+    for c in shorts_targets(picks, cfg):
+        url = f"https://kick.com/{c['slug']}/videos/{c['uuid']}"
+        r = run(["gh", "workflow", "run", "shorts_prep.yml",
+                 "-f", f"video={url}", "-f", "platform=kick", "-f", f"n={shorts_n}"],
+                check=False)
+        state = "queued" if r.returncode == 0 else "SKIPPED (dispatch失敗)"
+        print(f"shorts {state}: {c['slug']}/{c['uuid']} {c['title']}")
 
 
 if __name__ == "__main__":

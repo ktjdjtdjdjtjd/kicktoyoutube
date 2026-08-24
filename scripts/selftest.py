@@ -468,6 +468,30 @@ def test_shorts_pick():
     check("sp: 空チャットで落ちない", sp.find_candidates([]) == [])
 
 
+def test_shorts_dispatch():
+    """ショート下書きの連鎖は shorts_channels のチャンネルだけに出ること。
+
+    アーカイブ本線(process)は3ch全部を回すので、ここが漏れると他人のチャンネルの
+    ショートまで作り始める。
+    """
+    import watch
+
+    picks = [{"slug": "zingisukan2525", "uuid": "a", "title": "t"},
+             {"slug": "hashimotokun78", "uuid": "b", "title": "t"}]
+    got = watch.shorts_targets(picks, {"shorts_channels": ["zingisukan2525"]})
+    check("watch: shorts対象を絞る", [c["uuid"] for c in got] == ["a"], f"{[c['uuid'] for c in got]}")
+    check("watch: 未設定なら何もしない", watch.shorts_targets(picks, {}) == [])
+    check("watch: 空でも落ちない", watch.shorts_targets([], {"shorts_channels": ["x"]}) == [])
+
+    cfgp = Path(__file__).parent.parent / "config.json"
+    cfg = json.loads(cfgp.read_text(encoding="utf-8"))
+    check("watch: configにshorts_channelsがある", bool(cfg.get("shorts_channels")),
+          str(cfg.get("shorts_channels")))
+    check("watch: shorts対象はchannelsの部分集合",
+          set(cfg.get("shorts_channels") or []) <= set(cfg.get("channels") or []),
+          "監視していないチャンネルは連鎖できない")
+
+
 def main():
     test_plan_segments()
     test_tokenize()
@@ -481,6 +505,7 @@ def main():
     test_burn_request()
     test_shorts_render()
     test_shorts_pick()
+    test_shorts_dispatch()
     if FAILED:
         print(f"\n{len(FAILED)} FAILED: {FAILED}")
         sys.exit(1)
