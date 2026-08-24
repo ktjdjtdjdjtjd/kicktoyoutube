@@ -430,6 +430,44 @@ def test_shorts_render():
           "yuv420p" in (Path(__file__).with_name("shorts_render.py")
                         .read_text(encoding="utf-8")))
 
+def test_shorts_pick():
+    """候補選定(候補ボードからの移植)が効いていること。
+
+    実データ照合は verify 済み(8/19配信・チャット33,546行で20件中20件の
+    score/rel/msgs が一致)。ここは CI で回せる合成データの範囲を見る。
+    """
+    import shorts_pick as sp
+
+    rows = [(float(t), "ふつうのコメント") for t in range(0, 1200, 10)]   # 平常帯
+    rows += [(600.0 + i * 0.5, "www") for i in range(60)]                 # 600-630 に爆発
+    rows.sort()
+    cands = sp.find_candidates(rows, topn=5)
+    check("sp: ピークを拾う", bool(cands), f"{len(cands)}件")
+    if cands:
+        top = cands[0]
+        check("sp: ピーク位置が合っている", 560 <= top["start"] <= 620, f"start={top['start']}")
+        check("sp: 笑いタグが付く", "🤣爆笑" in top["tags"], f"{top['tags']}")
+        check("sp: 平常比が1超", top["rel"] > 1.0, f"rel={top['rel']}")
+
+    # 長い候補はショート尺に詰める(実測で200秒級が混ざる)
+    s, e = sp.tighten(rows, 500.0, 700.0, 70.0, 30.0)
+    check("sp: 長い候補をmax_secへ", abs((e - s) - 70.0) < 0.11, f"{e - s}s")
+    check("sp: 詰め先がピーク側", 560 <= s <= 620, f"start={s}")
+    s2, e2 = sp.tighten(rows, 100.0, 110.0, 70.0, 30.0)
+    check("sp: 短い候補をmin_secへ", abs((e2 - s2) - 30.0) < 0.11, f"{e2 - s2}s")
+    s3, e3 = sp.tighten(rows, 2.0, 5.0, 70.0, 30.0)
+    check("sp: 先頭で負にならない", s3 >= 0.0, f"start={s3}")
+
+    dup = [{"start": 600, "end": 660, "score": 9, "rel": 3.0, "msgs": 9, "tags": []},
+           {"start": 605, "end": 665, "score": 8, "rel": 2.0, "msgs": 8, "tags": []},
+           {"start": 100, "end": 160, "score": 7, "rel": 1.5, "msgs": 7, "tags": []}]
+    segs = sp.to_segments(rows, dup, 8, 70.0, 30.0)
+    check("sp: かぶった候補を落とす", len(segs) == 2, f"{len(segs)}本")
+    check("sp: idが連番", [x["id"] for x in segs] == list(range(1, len(segs) + 1)))
+    check("sp: 本数上限を守る", len(sp.to_segments(rows, dup, 1, 70.0, 30.0)) == 1)
+    check("sp: 空チャットで落ちない", sp.find_candidates([]) == [])
+
+
 def main():
     test_plan_segments()
     test_tokenize()
@@ -442,6 +480,7 @@ def main():
     test_mark_done_import()
     test_burn_request()
     test_shorts_render()
+    test_shorts_pick()
     if FAILED:
         print(f"\n{len(FAILED)} FAILED: {FAILED}")
         sys.exit(1)

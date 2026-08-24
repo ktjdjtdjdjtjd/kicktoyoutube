@@ -39,6 +39,10 @@ jobs:
           if [ "$got" != "$FONT_BLOB_SHA" ]; then
             echo "font hash mismatch: $got"; exit 1
           fi
+      # segments 未指定の依頼は、チャットの盛り上がりから区間を自動で選ぶ。
+      # 選定ロジックは手元の候補ボードからの移植(実データ20件で結果一致を確認済み)
+      - name: Pick candidates (segments 未指定のときだけ)
+        run: PYTHONPATH=scripts python scripts/shorts_pick.py
       - name: Prep clips
         env:
           GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
