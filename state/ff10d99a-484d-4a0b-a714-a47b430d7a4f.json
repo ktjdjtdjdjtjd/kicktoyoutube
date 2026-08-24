@@ -4,9 +4,26 @@
   "title": "高尾にきた！トラブル発生中。",
   "start_time": "2026-08-23 04:30:28",
   "duration_s": 47141.0,
-  "status": "dispatched",
+  "status": "done",
   "retries": 0,
   "dispatched_at": "2026-08-24T06:07:29.933243+00:00",
-  "updated_at": "2026-08-23T22:56:13.210082+00:00",
-  "note": "13.09hがYouTube 12h上限でrejected -> 分割投稿(6e23503)で再処理"
+  "updated_at": "2026-08-24T11:28:43.630040+00:00",
+  "note": "13.09hがYouTube 12h上限でrejected -> 分割投稿(6e23503)で再処理",
+  "yt_url": "https://www.youtube.com/watch?v=j4PtJlem0Do",
+  "parts": [
+    {
+      "id": "j4PtJlem0Do",
+      "url": "https://www.youtube.com/watch?v=j4PtJlem0Do",
+      "title": "【ジンギスカン】高尾にきた！トラブル発生中。【2026/08/23】（1/2）",
+      "start_s": 0.0,
+      "duration_s": 23575.106
+    },
+    {
+      "id": "bpjdWr1PQrY",
+      "url": "https://www.youtube.com/watch?v=bpjdWr1PQrY",
+      "title": "【ジンギスカン】高尾にきた！トラブル発生中。【2026/08/23】（2/2）",
+      "start_s": 23575.106,
+      "duration_s": 23564.485
+    }
+  ]
 }
