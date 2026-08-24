@@ -332,15 +332,17 @@ def _mark(path, st, result, extra=None):
                  fatal=False)
 
 
-def _finish_with_gemini(path, st, lines, duration, cfg, ccfg, api_key, dry_run):
-    """文字起こし→Gemini章立て→検証→YouTube説明欄更新→状態確定。
-    Geminiの一時障害(429/5xx/接続不可)なら試行消費を戻して exit 0 (赤failにしない)。"""
-    if len(lines) < 20:
-        _mark(path, st, "skipped-no-speech")
-        return
-    save_transcript(st, lines)  # 章立ての前に保存 (Gemini失敗でも成果を残す)
+def slice_part_lines(lines, part_start, part_dur):
+    """分割投稿のパートに属する文字起こし行を、パート内時刻(0起点)へ変換して返す。"""
+    end = part_start + part_dur
+    return [(t - part_start, txt) for t, txt in lines if part_start <= t < end]
+
+
+def _gemini_with_rollback(path, st, lines, ccfg, api_key, dry_run):
+    """Gemini章立て。一時障害(429/5xx/接続不可)は試行消費を戻して None を返す
+    (呼び元はそのまま return し、次サイクルで再挑戦する。赤failにしない)。"""
     try:
-        raw = gemini_chapters(lines, api_key, ccfg.get("model", "gemini-flash-latest"))
+        return gemini_chapters(lines, api_key, ccfg.get("model", "gemini-flash-latest"))
     except (urllib.error.HTTPError, urllib.error.URLError) as e:
         code = getattr(e, "code", None)
         if code is None or code in (429, 500, 502, 503, 504):
@@ -351,8 +353,55 @@ def _finish_with_gemini(path, st, lines, duration, cfg, ccfg, api_key, dry_run):
                 commit_paths([path], f"state: chapters gemini一時障害でリトライ待ち "
                                      f"({st.get('uuid', '')[:8]})", fatal=False)
             print(f"gemini transient failure ({code}) — 次サイクルで再試行", file=sys.stderr)
-            return  # exit 0 = 赤failにしない
+            return None
         raise
+
+
+def _finish_with_gemini(path, st, lines, duration, cfg, ccfg, api_key, dry_run):
+    """文字起こし→Gemini章立て→検証→YouTube説明欄更新→状態確定。
+    12h超で分割投稿された動画(st['parts'])は、パートごとに文字起こしを切り出し
+    パート内時刻(0起点)で章立てして各動画の説明欄を更新する。"""
+    if len(lines) < 20:
+        _mark(path, st, "skipped-no-speech")
+        return
+    save_transcript(st, lines)  # 章立ての前に保存 (Gemini失敗でも成果を残す)
+    token_env = ((cfg.get("channel_settings") or {}).get(st["slug"], {})
+                 .get("yt_token_env", "YT_TOKEN_JSON"))
+    parts = st.get("parts") or []
+    if len(parts) > 1:
+        counts = []
+        for i, p in enumerate(parts, 1):
+            p_start = float(p.get("start_s") or 0.0)
+            p_dur = float(p.get("duration_s") or max(0.0, duration - p_start))
+            plines = slice_part_lines(lines, p_start, p_dur)
+            if len(plines) < 20:
+                print(f"part {i}/{len(parts)}: 発話が少ない — skip", file=sys.stderr)
+                continue
+            raw = _gemini_with_rollback(path, st, plines, ccfg, api_key, dry_run)
+            if raw is None:
+                return  # 一時障害: 全体を次サイクルへ (更新はin-place置換なので冪等)
+            chs = validate_chapters(raw, p_dur)
+            if len(chs) < 3:
+                print(f"part {i}/{len(parts)}: 章が少なすぎる — skip", file=sys.stderr)
+                continue
+            print(f"chapters (part {i}/{len(parts)}):", file=sys.stderr)
+            for s, label in chs:
+                print(f"  {hms(s)} {label}", file=sys.stderr)
+            if not dry_run:
+                update_youtube_description(p["url"].split("v=")[-1], chs, token_env)
+            counts.append(len(chs))
+        if dry_run:
+            print("dry-run: not updating")
+            return
+        if not counts:
+            _mark(path, st, "skipped-too-few")
+            return
+        _mark(path, st, "done", {"n": sum(counts), "parts_done": len(counts)})
+        print("description updated (parts)")
+        return
+    raw = _gemini_with_rollback(path, st, lines, ccfg, api_key, dry_run)
+    if raw is None:
+        return
     print("gemini raw:\n" + raw[:1000], file=sys.stderr)
     chapters = validate_chapters(raw, duration)
     if len(chapters) < 3:
@@ -365,8 +414,6 @@ def _finish_with_gemini(path, st, lines, duration, cfg, ccfg, api_key, dry_run):
         print("dry-run: not updating")
         return
     video_id = st["yt_url"].split("v=")[-1]
-    token_env = ((cfg.get("channel_settings") or {}).get(st["slug"], {})
-                 .get("yt_token_env", "YT_TOKEN_JSON"))
     update_youtube_description(video_id, chapters, token_env)
     _mark(path, st, "done", {"n": len(chapters)})
     print("description updated")

@@ -15,6 +15,9 @@ def main():
     ap.add_argument("uuid")
     ap.add_argument("--status", default="done")
     ap.add_argument("--yt-url", default="")
+    ap.add_argument("--yt-parts", default="",
+                    help="12h超で分割投稿した場合のJSON配列 "
+                         "[{id,url,title,start_s,duration_s},...]")
     a = ap.parse_args()
     STATE_DIR.mkdir(exist_ok=True)
     p = STATE_DIR / f"{a.uuid}.json"
@@ -25,6 +28,10 @@ def main():
     data["updated_at"] = datetime.now(timezone.utc).isoformat()
     if a.yt_url:
         data["yt_url"] = a.yt_url
+    if a.yt_parts.strip():
+        parts = json.loads(a.yt_parts)
+        if len(parts) > 1:  # 1本なら通常動画と同じ扱い(partsを持たせない)
+            data["parts"] = parts
     p.write_text(json.dumps(data, ensure_ascii=False, indent=2), encoding="utf-8")
     if not commit_state([p], f"state: {a.uuid} -> {a.status}"):
         raise SystemExit("error: could not push state")

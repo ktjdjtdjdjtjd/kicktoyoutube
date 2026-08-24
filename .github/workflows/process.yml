@@ -166,7 +166,8 @@ jobs:
       - name: Mark done
         run: |
           PYTHONPATH=scripts python scripts/mark_done.py "${{ inputs.uuid }}" \
-            --status done --yt-url "${{ steps.upload.outputs.yt_url }}"
+            --status done --yt-url "${{ steps.upload.outputs.yt_url }}" \
+            --yt-parts '${{ steps.upload.outputs.yt_parts }}'
       - name: Notify (Discord, optional)
         if: always()
         env:

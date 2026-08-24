@@ -158,6 +158,13 @@ def test_yt_title_sanitize():
     cs4 = channel_settings(cfg, "zingisukan2525")
     check("yt: zingisukan settings", cs4["yt_token_env"] == "YT_TOKEN_JSON_WAINAINA"
           and "ジンギスカン" in cs4["title_template"])
+    # 12h超の分割投稿: タイトルは（i/N）接尾辞・95字上限を接尾辞込みで守る
+    from yt_upload import part_title
+    check("yt: part title suffix", part_title("タイトル", 1, 2) == "タイトル（1/2）"
+          and part_title("タイトル", 2, 2).endswith("（2/2）"))
+    long_t = part_title("あ" * 120, 1, 2)
+    check("yt: part title capped", len(long_t) == 95 and long_t.endswith("（1/2）"),
+          f"(len={len(long_t)})")
 
 
 def test_thumbnail():
@@ -254,6 +261,14 @@ def test_chapters_logic():
     merged.sort(key=lambda x: x[0])
     check("ch: finalize merge+sort", [t for t, _ in merged] == [5.0, 10.0, 2701.0, 2705.0],
           f"({merged})")
+    # 分割投稿のパート切り出し: 境界の行はパート2側・パート内時刻(0起点)へ変換
+    pl = chapters.slice_part_lines(
+        [(10.0, "前半"), (23570.0, "境界"), (23580.0, "後半"), (47000.0, "末尾")],
+        23570.0, 23571.0)
+    check("ch: part slice+shift", pl == [(0.0, "境界"), (10.0, "後半"), (23430.0, "末尾")],
+          f"({pl})")
+    check("ch: part slice excludes before",
+          chapters.slice_part_lines([(10.0, "前半")], 23570.0, 23571.0) == [])
     # 文字起こし保管: ヘッダ(title/url)付き・各行 [HH:MM:SS] 本文・時刻から復元可能
     tx = chapters.format_transcript(
         {"title": "配信タイトル", "yt_url": "https://x", "slug": "hashimotokun78",
