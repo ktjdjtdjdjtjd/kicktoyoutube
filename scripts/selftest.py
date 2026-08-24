@@ -3,6 +3,7 @@
     python scripts/selftest.py
 """
 import json
+import re
 import sys
 import tempfile
 from pathlib import Path
@@ -382,6 +383,53 @@ def test_burn_request():
     check("br: twitch_chat_fetch importable", True)
 
 
+def test_shorts_render():
+    """縦型下書きの字幕が画面幅に収まること。
+
+    jp_wrap は max_lines を超えると per_line を破って詰め込むため、
+    16文字折り返しのままだと実際に左右が切れて焼き上がった(実測)。
+    行数側を緩めて文字数側を必ず守らせる形に直した回帰テスト。
+    """
+    import shorts_render as sr
+
+    NL = chr(10)
+    srt = NL.join(["1", "00:00:00,500 --> 00:00:03,200", "いやこれめっちゃうまいんだけど", "",
+                   "2", "00:00:03,400 --> 00:00:07,100", "なんか時代終わったね あの子は"])
+    with tempfile.TemporaryDirectory() as td:
+        sp = Path(td) / "a.srt"
+        sp.write_text(srt, encoding="utf-8")
+        segs = sr.parse_srt(sp)
+    check("sr: srt 2件パース", len(segs) == 2, f"{len(segs)}件")
+    check("sr: srt 時刻", bool(segs) and abs(segs[0]["start"] - 0.5) < 1e-6
+          and abs(segs[-1]["end"] - 7.1) < 1e-6)
+    check("sr: srt 本文", bool(segs) and segs[-1]["text"] == "なんか時代終わったね あの子は")
+
+    long = "もう一回やるからちゃんと見ててねこれ本当に大事なところだから絶対に見逃さないで"
+    cases = [long, "なんか時代終わったね あの子は", "あ" * 51, "www", "え？"]
+    segs = [{"start": i * 2, "end": i * 2 + 1.5, "text": t} for i, t in enumerate(cases)]
+    with tempfile.TemporaryDirectory() as td:
+        ap = Path(td) / "cap.ass"
+        sr.build_ass(segs, "まさかの展開だった", 60.0, ap)
+        body = ap.read_text(encoding="utf-8")
+    over = []
+    n_dialogue = 0
+    for ln in body.splitlines():
+        if not ln.startswith("Dialogue:"):
+            continue
+        n_dialogue += 1
+        parts = ln.split(",", 9)
+        style, text = parts[3], parts[-1]
+        text = re.sub("[{][^}]*[}]", "", text)      # ASS override タグを除去
+        limit = sr.TITLE_WRAP if style == "Title" else sr.CAP_WRAP
+        for row in text.split(chr(92) + "N"):
+            if len(row) > limit:
+                over.append(f"{style}:{len(row)}>{limit}:{row[:14]}")
+    check("sr: 全行が折り返し上限内(はみ出し回帰)", not over, f"超過{len(over)}件 {over[:2]}")
+    check("sr: タイトル+字幕が出ている", n_dialogue == len(cases) + 1, f"{n_dialogue}行")
+    check("sr: 420p固定を明示している",
+          "yuv420p" in (Path(__file__).with_name("shorts_render.py")
+                        .read_text(encoding="utf-8")))
+
 def main():
     test_plan_segments()
     test_tokenize()
@@ -393,6 +441,7 @@ def main():
     test_watch_stale_logic()
     test_mark_done_import()
     test_burn_request()
+    test_shorts_render()
     if FAILED:
         print(f"\n{len(FAILED)} FAILED: {FAILED}")
         sys.exit(1)
