@@ -492,6 +492,28 @@ def test_shorts_dispatch():
           "監視していないチャンネルは連鎖できない")
 
 
+def test_shorts_title_clean():
+    """Geminiのタイトル案からラベルを落とすこと。
+
+    出力形式に「案1 / 案2」と書いたら、そのまま "案1 犯人はあのメガネの人!?" が
+    返ってきて縦型のヘッダーに焼き込まれた(実測・run 32741421262)。プロンプトを
+    直しただけでは再発しうるので、受け側でも必ず落とす。
+    """
+    import shorts_prep as sp
+
+    cases = [("案1 犯人はあのメガネの人!?", "犯人はあのメガネの人!?"),
+             ("案2 写真を撮った犯人とは", "写真を撮った犯人とは"),
+             ("案 3 前後に空白 ", "前後に空白"),
+             ("1. まさかの展開", "まさかの展開"),
+             ("・温泉で事故", "温泉で事故"),
+             ("「引用付き」", "引用付き"),
+             ("ふつうのタイトル", "ふつうのタイトル"),
+             ("", "")]
+    bad = [(i, want, sp.clean_title(i)) for i, want in cases if sp.clean_title(i) != want]
+    check("sp: タイトルのラベル除去", not bad, str(bad[:2]))
+    check("sp: 出力形式にラベル例を残していない", "案1\n案2" not in sp.TITLE_PROMPT)
+
+
 def main():
     test_plan_segments()
     test_tokenize()
@@ -506,6 +528,7 @@ def main():
     test_shorts_render()
     test_shorts_pick()
     test_shorts_dispatch()
+    test_shorts_title_clean()
     if FAILED:
         print(f"\n{len(FAILED)} FAILED: {FAILED}")
         sys.exit(1)

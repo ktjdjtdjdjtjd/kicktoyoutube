@@ -11,6 +11,7 @@ Geminiでヘッダータイトル案(1行7〜9文字×2案)。out_shorts/ を ar
 """
 import argparse
 import json
+import re
 import os
 import subprocess
 import sys
@@ -29,13 +30,23 @@ TITLE_PROMPT = """以下はライブ配信の切り抜きクリップの文字�
 - 内容に実際に出てくる出来事・発言だけを使う。創作・誇張禁止
 - 煽り記号(!?)は各案1個まで。絵文字禁止
 
-## 出力形式(これ以外は出力しない)
-案1
-案2
+## 出力形式
+- 2行だけ出力する。1行につき1案、タイトル本文だけを書く
+- 番号やラベル("案1" など)、箇条書き記号、引用符、説明を付けない
 
 ## 文字起こし
 {transcript}
 """
+
+# "案1 ..." のようなラベルが返ることがあり、そのままヘッダーに焼かれてしまう
+# (実測: 「案1 犯人はあのメガネの人!?」が焼き込まれた)。プロンプトだけに頼らず落とす。
+TITLE_LABEL_RE = re.compile(r"^\s*(?:案\s*[0-9０-９]+|[0-9０-９]+|[-*・>＞])\s*[.):：、]?\s*")
+
+
+def clean_title(s):
+    s = (s or "").strip()
+    s = TITLE_LABEL_RE.sub("", s)
+    return s.strip().strip('"\'「」『』').strip()
 
 
 def resolve_source(platform, video):
@@ -104,7 +115,7 @@ def gemini_titles(transcript, api_key):
             with urllib.request.urlopen(req, timeout=120) as r:
                 resp = json.loads(r.read())
             text = resp["candidates"][0]["content"]["parts"][0]["text"]
-            return [ln.strip() for ln in text.splitlines() if ln.strip()][:2]
+            return [t for t in (clean_title(ln) for ln in text.splitlines()) if t][:2]
         except Exception as e:
             print(f"gemini {m}: {e}", file=sys.stderr)
     return []
