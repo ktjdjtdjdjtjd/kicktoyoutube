@@ -4,7 +4,9 @@
   "title": "江ノ島にきた！糖尿病が悪化しています。。",
   "start_time": "2026-08-25 04:07:15",
   "duration_s": 26789.0,
-  "status": "dispatched",
+  "status": "done",
   "retries": 1,
-  "dispatched_at": "2026-08-25T15:05:27.357647+00:00"
+  "dispatched_at": "2026-08-25T15:05:27.357647+00:00",
+  "updated_at": "2026-08-25T18:19:00.080471+00:00",
+  "yt_url": "https://www.youtube.com/watch?v=OQGTTyCR03Q"
 }
