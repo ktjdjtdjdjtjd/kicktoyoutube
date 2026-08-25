@@ -4,7 +4,9 @@
   "title": "外部だと１５０人の男の雑談",
   "start_time": "2026-08-25 16:19:11",
   "duration_s": 10492.0,
-  "status": "dispatched",
+  "status": "done",
   "retries": 0,
-  "dispatched_at": "2026-08-25T19:57:34.639219+00:00"
+  "dispatched_at": "2026-08-25T19:57:34.639219+00:00",
+  "updated_at": "2026-08-25T21:24:42.353114+00:00",
+  "yt_url": "https://www.youtube.com/watch?v=HQDuMf4lepc"
 }
