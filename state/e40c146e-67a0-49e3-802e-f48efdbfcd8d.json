@@ -4,7 +4,9 @@
   "title": "仙台行っていいのか？　行くべきなのか？",
   "start_time": "2026-08-26 14:55:42",
   "duration_s": 15640.0,
-  "status": "dispatched",
+  "status": "done",
   "retries": 0,
-  "dispatched_at": "2026-08-26T21:45:44.368627+00:00"
+  "dispatched_at": "2026-08-26T21:45:44.368627+00:00",
+  "updated_at": "2026-08-27T00:08:16.473399+00:00",
+  "yt_url": "https://www.youtube.com/watch?v=TlGwm9LwLHw"
 }
