@@ -1,8 +1,12 @@
 name: maintenance
 # 投稿済み動画の一括レトロフィット (タイムスタンプ形式修正・改名など)。
-# 手動dispatch か maintenance/ 配下へのpushで1回実行する
+# 手動dispatch / maintenance/ 配下へのpush / 日次cron(クォータリセット直後)で実行。
+# retrofitは冪等+クォータ枯渇で打ち切りなので、cronで毎日流しても
+# 「未適用の残りだけ進めて、変更なしなら何もしない」で安全。
 on:
   workflow_dispatch:
+  schedule:
+    - cron: "15 7 * * *"  # 16:15 JST = YouTube APIクォータリセット(16:00 JST)直後
   push:
     paths:
       - "maintenance/trigger.txt"
