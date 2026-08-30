@@ -60,6 +60,16 @@ def reformat_description(desc, slug):
         if "#ニコ生" not in desc:
             desc = desc.replace("#キッカーズ #ジンギスカン",
                                 "#ジンギスカン #Kick配信 #ニコ生 #キッカーズ")
+        if "sub_confirmation" not in desc:
+            # 登録導線をハッシュタグ行の直前へ (2026-08-31)
+            sub = ("チャンネル登録▽\n"
+                   "https://www.youtube.com/channel/"
+                   "UC9XW9n39Ai_Dcpfkztewgpw?sub_confirmation=1")
+            if "\n#ジンギスカン" in desc:
+                desc = desc.replace("\n#ジンギスカン",
+                                    "\n" + sub + "\n\n#ジンギスカン", 1)
+            else:
+                desc = desc.rstrip() + "\n\n" + sub
     return desc
 
 
