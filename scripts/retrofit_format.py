@@ -119,7 +119,15 @@ def main():
         video_id = yt_url.split("v=")[-1]
         token_env = csettings.get(slug, {}).get("yt_token_env", "YT_TOKEN_JSON")
         yt = get_youtube(token_env)
-        items = yt.videos().list(part="snippet", id=video_id).execute().get("items", [])
+        try:
+            items = (yt.videos().list(part="snippet", id=video_id).execute()
+                     .get("items", []))
+        except Exception as e:
+            if "quota" in str(e).lower():
+                print(f"quota exceeded — 打ち切り。残りは次回実行で継続: {e}")
+                break
+            print(f"list failed (skip): {video_id} {e}")
+            continue
         if not items:
             print(f"not found (deleted?): {video_id} {st.get('title')}")
             continue
@@ -143,8 +151,17 @@ def main():
         snippet["title"] = new_title
         snippet["description"] = new_desc
         snippet["tags"] = tags
-        yt.videos().update(part="snippet",
-                           body={"id": video_id, "snippet": snippet}).execute()
+        try:
+            yt.videos().update(part="snippet",
+                               body={"id": video_id, "snippet": snippet}).execute()
+        except Exception as e:
+            # クォータ枯渇は打ち切り(残りは次回トリガで冪等に続きから)。
+            # 個別動画のエラーはスキップして全体を殺さない。
+            if "quota" in str(e).lower():
+                print(f"quota exceeded — 打ち切り。残りは次回実行で継続: {e}")
+                break
+            print(f"update failed (skip): {video_id} {e}")
+            continue
         updated += 1
 
     if requeue_paths and not a.dry_run:
