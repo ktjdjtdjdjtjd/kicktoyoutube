@@ -119,10 +119,32 @@ def extract_audio(src, dest="audio.wav"):
     return dest
 
 
+def load_glossary():
+    """glossary.json (単語帳)。terms=正しい固有名詞 / replace=誤変換の確定置換。
+    無い・壊れたJSONでも章生成は止めない。"""
+    try:
+        g = json.loads(Path("glossary.json").read_text(encoding="utf-8"))
+        return (list(g.get("terms") or []), dict(g.get("replace") or {}))
+    except Exception:
+        return [], {}
+
+
+def apply_glossary(lines, replace):
+    if not replace:
+        return lines
+    out = []
+    for t, txt in lines:
+        for a, b in replace.items():
+            txt = txt.replace(a, b)
+        out.append((t, txt))
+    return out
+
+
 def transcribe(path, model_size="small", chunk_s=1800):
     """30分チャンクずつ文字起こし (4時間級VODの一括処理はランナーVMごと
     落ちる=exit143 が実測されたため、常にメモリ有界にする)。"""
     from faster_whisper import WhisperModel
+    hint = "、".join(load_glossary()[0])[:200]  # initial_promptで固有名詞の認識を寄せる
     model = WhisperModel(model_size, device="cpu", compute_type="int8")
     r = subprocess.run(["ffprobe", "-v", "error", "-show_entries",
                         "format=duration", "-of", "csv=p=0", path],
@@ -137,6 +159,7 @@ def transcribe(path, model_size="small", chunk_s=1800):
                         "-ss", f"{t:.3f}", "-t", f"{clen:.3f}", "-i", path, part],
                        check=True)
         segments, _info = model.transcribe(part, language="ja", beam_size=1,
+                                           initial_prompt=hint or None,
                                            vad_filter=True,
                                            vad_parameters={"min_silence_duration_ms": 1500})
         for seg in segments:
@@ -181,6 +204,10 @@ def bucketize(lines, bucket=60, max_chars=120):
 def gemini_chapters(lines, api_key, model):
     compact = bucketize(lines)
     transcript = "\n".join(f"[{hms(t)}] {txt}" for t, txt in compact)
+    terms = load_glossary()[0]
+    if terms:
+        transcript = ("(固有名詞は次の表記を使うこと: "
+                      + "、".join(terms[:30]) + ")\n" + transcript)
     print(f"transcript for gemini: {len(compact)} lines, {len(transcript)} chars",
           file=sys.stderr)
     body = json.dumps({
@@ -364,6 +391,7 @@ def _finish_with_gemini(path, st, lines, duration, cfg, ccfg, api_key, dry_run):
     if len(lines) < 20:
         _mark(path, st, "skipped-no-speech")
         return
+    lines = apply_glossary(lines, load_glossary()[1])  # 単語帳の確定置換
     save_transcript(st, lines)  # 章立ての前に保存 (Gemini失敗でも成果を残す)
     token_env = ((cfg.get("channel_settings") or {}).get(st["slug"], {})
                  .get("yt_token_env", "YT_TOKEN_JSON"))
