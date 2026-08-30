@@ -42,13 +42,18 @@
   "channel_settings": {
     "hashimotokun78": {
       "yt_token_env": "YT_TOKEN_JSON",
-      "title_template": "【はしもと君】{title}【{date_slash}】",
-      "description_template": "はしもと君のKICK配信の録画アーカイブです。\n\nタイムスタンプ▽\n\n\n元配信▽\n{title}\n{url}\n\n#キッカーズ #はしもと君 #横山緑",
+      "title_template": "【はしもとくん】{title}【{date_slash}】",
+      "description_template": "はしもとくんのKICK配信の録画アーカイブです。\n\nタイムスタンプ▽\n\n\n元配信▽\n{title}\n{url}\n\n#キッカーズ #はしもとくん #横山緑",
       "tags": [
-        "キッカーズ",
+        "はしもとくん",
         "はしもと君",
+        "橋本くん",
+        "橋下くん",
+        "橋本君",
+        "キッカーズ",
         "横山緑",
-        "Kick"
+        "Kick",
+        "Kick配信"
       ]
     },
     "220ninimaru": {
