@@ -51,6 +51,10 @@ def reformat_description(desc, slug):
         desc = desc.replace("ににまるのKICK配信", "かつきのKICK配信")
         if "#かつき" not in desc:
             desc = desc.replace("#ににまる", "#かつき #ににまる")
+    if slug == "hashimotokun78":
+        # 公式表記「はしもとくん」へ統一 (2026-08-31)
+        desc = desc.replace("はしもと君のKICK配信", "はしもとくんのKICK配信")
+        desc = desc.replace("#はしもと君", "#はしもとくん")
     if slug == "zingisukan2525":
         # 検索KW反映 (2026-08-30): 冒頭文とハッシュタグを新テンプレへ
         desc = desc.replace(
@@ -76,6 +80,8 @@ def reformat_description(desc, slug):
 def retitle(title, slug):
     if slug == "220ninimaru" and title.startswith("【ににまる】"):
         return "【かつき】" + title[len("【ににまる】"):]
+    if slug == "hashimotokun78" and title.startswith("【はしもと君】"):
+        return "【はしもとくん】" + title[len("【はしもと君】"):]
     if slug == "zingisukan2525" and "Kick配信" not in title:
         # 【2026/08/23】→【Kick配信 2026/08/23】 (分割パートの（1/2）等は後置のまま保たれる)
         title = re.sub(r"【(\d{4}/\d{2}/\d{2})】", r"【Kick配信 \1】", title, count=1)
@@ -121,10 +127,10 @@ def main():
         new_title = retitle(snippet.get("title", ""), slug)
         new_desc = reformat_description(snippet.get("description", ""), slug)
         tags = snippet.get("tags") or []
-        if slug == "220ninimaru" and "かつき" not in tags:
-            tags = ["かつき"] + tags
-        if slug == "zingisukan2525" and "ニコ生" not in tags:
-            tags = (csettings.get(slug, {}).get("tags") or tags) or tags
+        # 全chともconfigのタグ一式へ統一 (横山緑・表記ゆれ等の追加が遡及で効く)
+        want = csettings.get(slug, {}).get("tags") or []
+        if want and any(t not in tags for t in want):
+            tags = list(want)
         changed = (new_title != snippet.get("title")
                    or new_desc != snippet.get("description")
                    or tags != (snippet.get("tags") or []))
