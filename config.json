@@ -22,10 +22,6 @@
   "encode_preset": "veryfast",
   "encode_crf": "23",
   "backlog": true,
-  "shorts_channels": [
-    "zingisukan2525"
-  ],
-  "shorts_n": 8,
   "daily_upload_limit": 12,
   "max_inflight": 3,
   "dispatch_batch": 2,
@@ -68,12 +64,17 @@
     },
     "zingisukan2525": {
       "yt_token_env": "YT_TOKEN_JSON_WAINAINA",
-      "title_template": "【ジンギスカン】{title}【{date_slash}】",
-      "description_template": "ジンギスカンのKICK配信の録画アーカイブです。\n\nタイムスタンプ▽\n\n\n元配信▽\n{title}\n{url}\n\n#キッカーズ #ジンギスカン",
+      "title_template": "【ジンギスカン】{title}【Kick配信 {date_slash}】",
+      "description_template": "ニコ生出身の配信者ジンギスカンのKick配信 録画アーカイブです。\n毎日の配信をフルで残しています。\n\nタイムスタンプ▽\n\n\n元配信▽\n{title}\n{url}\n\n#ジンギスカン #Kick配信 #ニコ生 #キッカーズ",
       "tags": [
-        "キッカーズ",
         "ジンギスカン",
-        "Kick"
+        "ジンギスカン 配信",
+        "ジンギスカン kick",
+        "ジンギスカン ニコ生",
+        "ニコ生",
+        "Kick",
+        "Kick配信",
+        "キッカーズ"
       ]
     }
   }
