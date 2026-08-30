@@ -9,6 +9,7 @@
     python retrofit_format.py [--config config.json] [--dry-run]
 """
 import argparse
+import re
 import json
 import os
 import sys
@@ -50,12 +51,24 @@ def reformat_description(desc, slug):
         desc = desc.replace("ににまるのKICK配信", "かつきのKICK配信")
         if "#かつき" not in desc:
             desc = desc.replace("#ににまる", "#かつき #ににまる")
+    if slug == "zingisukan2525":
+        # 検索KW反映 (2026-08-30): 冒頭文とハッシュタグを新テンプレへ
+        desc = desc.replace(
+            "ジンギスカンのKICK配信の録画アーカイブです。",
+            "ニコ生出身の配信者ジンギスカンのKick配信 録画アーカイブです。\n"
+            "毎日の配信をフルで残しています。")
+        if "#ニコ生" not in desc:
+            desc = desc.replace("#キッカーズ #ジンギスカン",
+                                "#ジンギスカン #Kick配信 #ニコ生 #キッカーズ")
     return desc
 
 
 def retitle(title, slug):
     if slug == "220ninimaru" and title.startswith("【ににまる】"):
         return "【かつき】" + title[len("【ににまる】"):]
+    if slug == "zingisukan2525" and "Kick配信" not in title:
+        # 【2026/08/23】→【Kick配信 2026/08/23】 (分割パートの（1/2）等は後置のまま保たれる)
+        title = re.sub(r"【(\d{4}/\d{2}/\d{2})】", r"【Kick配信 \1】", title, count=1)
     return title
 
 
@@ -100,6 +113,8 @@ def main():
         tags = snippet.get("tags") or []
         if slug == "220ninimaru" and "かつき" not in tags:
             tags = ["かつき"] + tags
+        if slug == "zingisukan2525" and "ニコ生" not in tags:
+            tags = (csettings.get(slug, {}).get("tags") or tags) or tags
         changed = (new_title != snippet.get("title")
                    or new_desc != snippet.get("description")
                    or tags != (snippet.get("tags") or []))
