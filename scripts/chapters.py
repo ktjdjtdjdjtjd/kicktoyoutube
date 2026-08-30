@@ -207,7 +207,7 @@ def gemini_chapters(lines, api_key, model):
     terms = load_glossary()[0]
     if terms:
         transcript = ("(固有名詞は次の表記を使うこと: "
-                      + "、".join(terms[:30]) + ")\n" + transcript)
+                      + "、".join(terms[:60]) + ")\n" + transcript)
     print(f"transcript for gemini: {len(compact)} lines, {len(transcript)} chars",
           file=sys.stderr)
     body = json.dumps({
