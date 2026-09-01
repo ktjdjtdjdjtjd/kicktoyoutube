@@ -4,7 +4,9 @@
   "title": "銀行からまだ連絡こず。。まじ詰んだ日！",
   "start_time": "2026-09-01 06:07:59",
   "duration_s": 25494.0,
-  "status": "dispatched",
+  "status": "done",
   "retries": 0,
-  "dispatched_at": "2026-09-01T16:55:51.955489+00:00"
+  "dispatched_at": "2026-09-01T16:55:51.955489+00:00",
+  "updated_at": "2026-09-01T20:04:28.706353+00:00",
+  "yt_url": "https://www.youtube.com/watch?v=db0S-j3guiM"
 }
