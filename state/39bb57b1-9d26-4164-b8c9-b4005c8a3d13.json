@@ -4,7 +4,9 @@
   "title": "ダウベース！",
   "start_time": "2026-09-01 05:46:11",
   "duration_s": 28528.0,
-  "status": "dispatched",
+  "status": "done",
   "retries": 0,
-  "dispatched_at": "2026-09-01T16:55:51.955489+00:00"
+  "dispatched_at": "2026-09-01T16:55:51.955489+00:00",
+  "updated_at": "2026-09-01T21:17:10.128044+00:00",
+  "yt_url": "https://www.youtube.com/watch?v=EH5TnMJBw0c"
 }
