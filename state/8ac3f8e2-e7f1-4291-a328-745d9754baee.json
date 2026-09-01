@@ -4,7 +4,25 @@
   "title": "クソ配信をしてしまい申し訳ありません",
   "start_time": "2026-08-31 04:37:01",
   "duration_s": 53297.0,
-  "status": "dispatched",
+  "status": "done",
   "retries": 0,
-  "dispatched_at": "2026-08-31T23:14:17.655941+00:00"
+  "dispatched_at": "2026-08-31T23:14:17.655941+00:00",
+  "updated_at": "2026-09-01T06:56:18.805502+00:00",
+  "yt_url": "https://www.youtube.com/watch?v=3mb2CHa5_rE",
+  "parts": [
+    {
+      "id": "3mb2CHa5_rE",
+      "url": "https://www.youtube.com/watch?v=3mb2CHa5_rE",
+      "title": "【かつき】クソ配信をしてしまい申し訳ありません【2026/08/31】（1/2）",
+      "start_s": 0.0,
+      "duration_s": 26649.838
+    },
+    {
+      "id": "5AhlvH8hm2M",
+      "url": "https://www.youtube.com/watch?v=5AhlvH8hm2M",
+      "title": "【かつき】クソ配信をしてしまい申し訳ありません【2026/08/31】（2/2）",
+      "start_s": 26649.838,
+      "duration_s": 26648.355
+    }
+  ]
 }
