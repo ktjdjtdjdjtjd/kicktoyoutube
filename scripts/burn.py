@@ -81,7 +81,7 @@ def _encode_chunk(vod, chunk_start, chunk_dur, manifest, strips_dir, vw,
 
     cmd = ["ffmpeg", "-y", "-hide_banner", "-loglevel", "warning", "-stats",
            "-ss", f"{chunk_start:.3f}", "-t", f"{chunk_dur:.3f}", "-i", vod]
-    entries = []  # (input_index, y, enable_expr or None)
+    entries = []  # (input_index, y, speed, enable_expr or None)
     idx = 1
     for s in strips:
         files = s["files"]
@@ -91,14 +91,14 @@ def _encode_chunk(vod, chunk_start, chunk_dur, manifest, strips_dir, vw,
             enable = None
             if k_total > 1:
                 enable = f"eq(mod(floor(t*{pfps})\\,{k_total})\\,{k})"
-            entries.append((idx, s["y"], enable))
+            entries.append((idx, s["y"], s.get("speed", speed), enable))
             idx += 1
     if entries:
         chains = []
         prev = "[0:v]"
-        for n, (i, y, enable) in enumerate(entries):
+        for n, (i, y, spd, enable) in enumerate(entries):
             lbl = f"[v{n+1}]"
-            opts = f"x={vw}-{lm}-t*{speed}:y={y}:eof_action=repeat"
+            opts = f"x={vw}-{lm}-t*{spd}:y={y}:eof_action=repeat"
             if enable:
                 opts += f":enable='{enable}'"
             chains.append(f"{prev}[{i}:v]overlay={opts}{lbl}")

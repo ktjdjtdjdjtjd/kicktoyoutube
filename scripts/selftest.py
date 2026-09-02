@@ -82,6 +82,12 @@ def test_layout_and_render():
     lanes3 = {pl[1] for pl in placed[:3]}
     check("layout: no lane collision", len(lanes3) == 3, f"(lanes={lanes3})")
     check("layout: long msg capped", placed[4][3] <= p.max_msg_w + 1)
+    # レーン別速度: 既定で複数の速度が混在し、レーン再利用は時刻ベース(十分空けばレーン0へ戻る)
+    check("layout: lane speeds vary", len(set(p.lane_speed)) >= 3 and min(p.lane_speed) > 0,
+          f"({sorted(set(round(s) for s in p.lane_speed))})")
+    check("layout: lane reused after gap", placed[3][1] == 0, f"(lane={placed[3][1]})")
+    p1 = strip_render.Params(scale=2 / 3, cfg={"danmaku": {"speed_variants": [1.0]}})
+    check("layout: speed_variants=[1.0] -> uniform", len(set(p1.lane_speed)) == 1)
 
     # 絵文字run分割
     runs = shaper.split_runs("草\U0001F602www")
@@ -127,6 +133,15 @@ def test_layout_and_render():
                                             emoji_font_path=find_emoji_font())
         check("render: cross-segment lanes stable",
               {s["lane"] for s in m2["strips"]} >= {pl[1] for pl in placed[:3]})
+        # ストリップごとの速度がmanifestに載り、幅は速度に比例する (burn側のoverlay式と整合)
+        check("render: per-lane speed in manifest",
+              all(abs(s["speed"] - p.lane_speed[s["lane"]]) < 1e-6 for s in m2["strips"]))
+        widths = {}
+        for s in m2["strips"]:
+            with Image.open(d / "strips2" / s["files"][0]) as im_:
+                widths[s["lane"]] = im_.width
+        check("render: strip width follows lane speed",
+              {0, 1, 2} <= set(widths) and widths[1] < widths[0] < widths[2], f"({widths})")
 
 
 def test_templates():

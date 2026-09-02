@@ -1,7 +1,8 @@
 """ダンマクレイヤーのストリップ描画 (テキスト+エモート画像+カラー絵文字をPILで事前合成)。
 
-全メッセージ等速(speed px/s)にすることで「1レーン=1枚の横長画像」になり、
+レーン内を等速(speed×レーン別倍率 px/s)にすることで「1レーン=1枚の横長画像」になり、
 ffmpeg は overlay をレーン数ぶん置くだけで済む (libass不使用・エモートはフルカラー)。
+速度をレーンごとに変える(speed_variants)ので、画面上では速いコメと遅いコメが混在して見える。
 
 - GIFエモート: 位相K枚のストリップ変種を作り、burn側でoverlayを時分割切替してアニメさせる
 - 絵文字: BIZ UDPGothicに無いグリフは Noto Color Emoji (CBDT) でカラー描画
@@ -31,6 +32,12 @@ class Params:
         self.scale = scale
         self.speed = float(d.get("speed", 150)) * scale          # px/s (1080p基準)
         self.n_lanes = 14
+        # レーンごとに速度を変える (速いコメ/遅いコメが混在して見えるニコ動風)。
+        # 同一レーン内は等速なので「1レーン=1枚」のストリップ方式はそのまま成立する。
+        variants = [float(v) for v in d.get("speed_variants",
+                                            [1.0, 0.75, 1.3, 0.9, 1.15, 0.7, 1.4])] or [1.0]
+        self.lane_speed = [self.speed * variants[i % len(variants)]
+                           for i in range(self.n_lanes)]
         self.lane_h = max(24, round(71 * scale))
         self.lane_top = [round((10 + i * 71) * scale) for i in range(self.n_lanes)]
         self.font_px = max(16, round(d.get("font_px", 60) * scale))
@@ -221,21 +228,20 @@ def measure_tokens(tokens, shaper, p):
 
 def layout(messages, shaper, p):
     """全メッセージへレーンを割り当てる。戻り: [(rel, lane, tokens, width)]"""
-    lane_free = [float("-inf")] * p.n_lanes
+    lane_free = [float("-inf")] * p.n_lanes  # そのレーンの右端が空く時刻(s)。速度はレーン別
     placed = []
     for rel, content in messages:
         tokens, width = measure_tokens(emotes_mod.tokenize(content), shaper, p)
         if not tokens or width <= 0:
             continue
-        x = rel * p.speed
         lane = None
         for i in range(p.n_lanes):
-            if lane_free[i] <= x:
+            if lane_free[i] <= rel:
                 lane = i
                 break
         if lane is None:
             lane = min(range(p.n_lanes), key=lambda i: lane_free[i])
-        lane_free[lane] = x + width + p.gap
+        lane_free[lane] = rel + (width + p.gap) / p.lane_speed[lane]
         placed.append((rel, lane, tokens, width))
     return placed
 
@@ -246,8 +252,7 @@ def render_strips(placed, seg_start, seg_end, shaper, bank, out_dir, p):
     out_dir = Path(out_dir)
     out_dir.mkdir(parents=True, exist_ok=True)
     seg_dur = seg_end - seg_start
-    width = int(p.left_margin + seg_dur * p.speed + p.screen_w + p.right_pad)
-    lookback = (p.screen_w + p.max_msg_w) / p.speed
+    lookback = (p.screen_w + p.max_msg_w) / min(p.lane_speed)
 
     lanes = {}
     for rel, lane, tokens, w in placed:
@@ -259,6 +264,8 @@ def render_strips(placed, seg_start, seg_end, shaper, bank, out_dir, p):
                 "screen_w": p.screen_w, "gif_phase_fps": p.gif_phase_fps, "strips": []}
 
     for lane in sorted(lanes):
+        spd = p.lane_speed[lane]
+        width = int(p.left_margin + seg_dur * spd + p.screen_w + p.right_pad)
         animated = False
         for rel, tokens, w in lanes[lane]:
             for kind, val in tokens:
@@ -273,7 +280,7 @@ def render_strips(placed, seg_start, seg_end, shaper, bank, out_dir, p):
             draw = ImageDraw.Draw(strip)
             y_mid = p.lane_h // 2
             for rel, tokens, w in lanes[lane]:
-                x = p.left_margin + (rel - seg_start) * p.speed
+                x = p.left_margin + (rel - seg_start) * spd
                 if x + w < 0 or x > width:
                     continue
                 cx = x
@@ -298,7 +305,8 @@ def render_strips(placed, seg_start, seg_end, shaper, bank, out_dir, p):
             fname = f"strip_{lane:02d}_p{phase}.png"
             strip.save(out_dir / fname)
             files.append(fname)
-        manifest["strips"].append({"lane": lane, "y": p.lane_top[lane], "files": files})
+        manifest["strips"].append({"lane": lane, "y": p.lane_top[lane], "speed": spd,
+                                   "files": files})
         print(f"lane {lane}: {len(lanes[lane])} msgs, variants={n_variants}", file=sys.stderr)
 
     (out_dir / "strips.json").write_text(json.dumps(manifest), encoding="utf-8")
