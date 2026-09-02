@@ -4,7 +4,9 @@
   "title": "熊本に募金しにきた 1日目",
   "start_time": "2026-09-01 23:38:28",
   "duration_s": 22265.0,
-  "status": "dispatched",
+  "status": "done",
   "retries": 0,
-  "dispatched_at": "2026-09-02T09:04:36.246291+00:00"
+  "dispatched_at": "2026-09-02T09:04:36.246291+00:00",
+  "updated_at": "2026-09-02T13:09:49.546112+00:00",
+  "yt_url": "https://www.youtube.com/watch?v=IH4c5WeQrXw"
 }
