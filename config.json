@@ -32,7 +32,7 @@
     "emote_px": 54,
     "gif_phases": 4,
     "gif_phase_fps": 5,
-    "chunk_seconds": 900
+    "chunk_seconds": 600
   },
   "chapters": {
     "enabled": true,
