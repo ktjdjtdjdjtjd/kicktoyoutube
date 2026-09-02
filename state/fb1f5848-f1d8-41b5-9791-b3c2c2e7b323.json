@@ -4,7 +4,9 @@
   "title": "ボーリングで100スコア超えるまで終われない。",
   "start_time": "2026-09-02 09:01:39",
   "duration_s": 20827.0,
-  "status": "dispatched",
+  "status": "done",
   "retries": 0,
-  "dispatched_at": "2026-09-02T17:23:55.958724+00:00"
+  "dispatched_at": "2026-09-02T17:23:55.958724+00:00",
+  "updated_at": "2026-09-02T20:31:09.901654+00:00",
+  "yt_url": "https://www.youtube.com/watch?v=oBgyB5Trsls"
 }
