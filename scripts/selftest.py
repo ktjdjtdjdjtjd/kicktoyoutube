@@ -384,6 +384,27 @@ def test_mark_done_import():
     check("mark_done: importable without curl_cffi deps", True)
 
 
+def test_pick_height():
+    """ランナー残ディスクからの画質フォールバック判定 (burn.pick_height)。"""
+    from burn import pick_height
+
+    GB = 1e9
+    # 7h VOD, seg 90分, 40GB空き -> 1080のまま (need約28.6GB)
+    h = pick_height(1080, 720, 40 * GB, 25200, 5400)
+    check("ph: 7h/40GB -> 1080", h == 1080, f"({h})")
+    # 14.8h VOD, 40GB空き -> 720へ降格 (need約56GB)
+    h = pick_height(1080, 720, 40 * GB, 53280, 5400)
+    check("ph: 14.8h/40GB -> 720", h == 720, f"({h})")
+    # durationが0/不明ならチェックをスキップしてwantのまま
+    h = pick_height(1080, 720, 1 * GB, 0, 5400)
+    check("ph: duration=0 -> want (skip check)", h == 1080, f"({h})")
+    h = pick_height(1080, 720, 1 * GB, None, 5400)
+    check("ph: duration=None -> want (skip check)", h == 1080, f"({h})")
+    # burnonly指定でwant=720のときはfallbackも720なので降格しようがなくwantのまま
+    h = pick_height(720, 720, 5 * GB, 53280, 5400)
+    check("ph: want=720/5GB/14.8h -> 720 (fallback not lower)", h == 720, f"({h})")
+
+
 def test_burn_request():
     import burn_request
     m = burn_request.KICK_URL_RE.search(
@@ -540,6 +561,7 @@ def main():
     test_watch_stale_logic()
     test_mark_done_import()
     test_burn_request()
+    test_pick_height()
     test_shorts_render()
     test_shorts_pick()
     test_shorts_dispatch()

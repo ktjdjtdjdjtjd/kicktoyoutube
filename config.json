@@ -4,7 +4,8 @@
     "220ninimaru",
     "zingisukan2525"
   ],
-  "format_height": 720,
+  "format_height": 1080,
+  "fallback_height": 720,
   "segment_seconds": 5400,
   "min_end_age_minutes": 20,
   "max_vod_age_days": 3,

@@ -6,19 +6,50 @@
 
 やること:
   1. yt-dlp (--impersonate chrome) で VOD 全体を config.format_height 以下でDL
-     (metaのsource m3u8を直渡し。kick抽出器は新v7 uuidで404するため)
+     (metaのsource m3u8を直渡し。kick抽出器は新v7 uuidで404するため。
+     ランナーの残ディスクが足りない場合は config.fallback_height へ自動降格する)
   2. strip_render でレーン別ストリップPNG (テキスト+エモート画像) を生成
   3. ffmpeg -ss/-t 入力シーク + overlay×レーン数 で合成エンコード
      (libx264 / yuv420p / faststart / timescale 90000 — 結合前提の共通パラメータ)
 """
 import argparse
 import json
+import shutil
 import subprocess
 import sys
 from pathlib import Path
 
 import kick_api
 import strip_render
+
+# ビットレート概算 (kbps基準の実測値。DL(全編)+エンコード出力(担当区間)の両方に使う概算)
+BITRATE_BPS = {1080: 6.0e6, 720: 2.4e6, 480: 1.2e6, 360: 0.8e6}
+
+
+def _bitrate(height):
+    return BITRATE_BPS.get(height, 6.0e6)
+
+
+def _estimate_bytes(height, duration_s, seg_dur_s, margin):
+    """VOD全体DL(概算, margin込み) + 担当区間のエンコード出力(概算) の合計バイト数。"""
+    br = _bitrate(height)
+    return duration_s * br / 8 * margin + seg_dur_s * br / 8
+
+
+def pick_height(want, fallback, free_bytes, duration_s, seg_dur_s, margin=1.3):
+    """ランナーの残ディスクから実際に使う画質を決める。
+
+    want (config.format_height or burnonlyのheight指定) で足りればそのまま、
+    足りず fallback の方が低ければ fallback へ降格。duration_s が不明/0なら
+    見積り不能なので常に want (チェックをスキップ)。"""
+    if not duration_s:
+        return want
+    need = _estimate_bytes(want, duration_s, seg_dur_s, margin)
+    if need <= free_bytes:
+        return want
+    if fallback < want:
+        return fallback
+    return want
 
 
 def run(cmd, **kw):
@@ -181,15 +212,32 @@ def main():
     cfg = kick_api.load_config(a.config)
 
     url = f"https://kick.com/{a.slug}/videos/{a.uuid}"
-    height = cfg.get("format_height", 720)
+    want = cfg.get("format_height", 720)
+    fallback = cfg.get("fallback_height", 720)
+    duration_s = 0
     try:
         meta_d = json.loads(Path(a.meta).read_text(encoding="utf-8"))
         if meta_d.get("source"):
             url = meta_d["source"]
         # burnonly依頼はmetaにheight指定を持つ (アーカイブフローのmetaには無く720のまま)
-        height = int(meta_d.get("height") or height)
+        want = int(meta_d.get("height") or want)
+        duration_s = meta_d.get("duration_s") or 0
     except Exception as e:
         print(f"meta read failed ({e}) — fall back to page URL", file=sys.stderr)
+
+    seg_dur_s = a.seg_end - a.seg_start
+    free_bytes = shutil.disk_usage(".").free
+    height = pick_height(want, fallback, free_bytes, duration_s, seg_dur_s)
+    need_bytes = _estimate_bytes(want, duration_s, seg_dur_s, 1.3) if duration_s else 0
+    if not duration_s:
+        reason = "duration unknown, skip check"
+    elif height == want:
+        reason = "fits in free space"
+    else:
+        reason = "disk-limited, falling back"
+    print(f"height: want={want} free={free_bytes/1e9:.1f}GB need={need_bytes/1e9:.1f}GB "
+          f"-> {height} ({reason})", file=sys.stderr)
+
     if not Path(a.vod).exists():
         download_vod(url, height, a.vod)
     else:

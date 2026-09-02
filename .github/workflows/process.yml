@@ -89,8 +89,14 @@ jobs:
           if [ "$got" != "$EMOJI_FONT_BLOB_SHA" ]; then
             echo "emoji font hash mismatch: $got"; exit 1
           fi
-      - name: Free disk space (8時間級VODのDL+エンコードに備える)
-        run: sudo rm -rf /usr/share/dotnet /usr/local/lib/android /opt/ghc /usr/local/.ghcup /opt/hostedtoolcache/CodeQL 2>/dev/null || true
+      - name: Free disk space (8時間級VODのDL+エンコードに備える)(1080p対応で拡大)
+        run: |
+          sudo rm -rf /usr/share/dotnet /usr/local/lib/android /opt/ghc /usr/local/.ghcup \
+            /opt/hostedtoolcache/CodeQL /usr/share/swift /usr/local/share/boost /usr/lib/jvm \
+            /usr/local/lib/node_modules /usr/local/share/powershell /usr/share/miniconda \
+            2>/dev/null || true
+          sudo docker image prune -af >/dev/null 2>&1 || true
+          df -h / | tail -1
       - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093  # v4
         with:
           name: chatpack
@@ -135,8 +141,14 @@ jobs:
           if [ "$got" != "$EMOJI_FONT_BLOB_SHA" ]; then
             echo "emoji font hash mismatch: $got"; exit 1
           fi
-      - name: Free disk space (セグメント合計+結合後で2倍の容量が要る)
-        run: sudo rm -rf /usr/share/dotnet /usr/local/lib/android /opt/ghc /usr/local/.ghcup /opt/hostedtoolcache/CodeQL 2>/dev/null || true
+      - name: Free disk space (セグメント合計+結合後で2倍の容量が要る)(1080p対応で拡大)
+        run: |
+          sudo rm -rf /usr/share/dotnet /usr/local/lib/android /opt/ghc /usr/local/.ghcup \
+            /opt/hostedtoolcache/CodeQL /usr/share/swift /usr/local/share/boost /usr/lib/jvm \
+            /usr/local/lib/node_modules /usr/local/share/powershell /usr/share/miniconda \
+            2>/dev/null || true
+          sudo docker image prune -af >/dev/null 2>&1 || true
+          df -h / | tail -1
       - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093  # v4
         with:
           name: chatpack

@@ -10,7 +10,7 @@ watch.yml (15分おきcron)
 
 process.yml (VODごと)
   plan     : メタ解決 + チャット全量DL + エモート画像の取得/蓄積 + セグメント計画(90分単位)
-  burn ×N  : VODをDL(≤720p) → 担当区間へダンマク焼き込み (並列, 各ジョブ6h制限内)
+  burn ×N  : VODをDL(≤1080p, Kick上限。ランナー残量不足なら720pへ自動フォールバック) → 担当区間へダンマク焼き込み (並列, 各ジョブ6h制限内)
   assemble : セグメント結合(-c copy) → 機械検証(pix_fmt/尺) → YouTubeへアップ → state更新
 ```
 
@@ -53,7 +53,8 @@ process.yml (VODごと)
 | キー | 意味 |
 |---|---|
 | channels | 監視するKickチャンネルslugの配列 |
-| format_height | DL画質上限（720推奨。1080p60はディスク/エンコード時間が跳ねる） |
+| format_height | DL画質上限（既定1080＝Kick上限の1080p30。ランナーの残ディスクが `fallback_height` で足りる分を割れば自動的に720pへ降格。目安: 約9時間超の配信は720pになる） |
+| fallback_height | 残ディスク不足時のフォールバック画質（既定720） |
 | segment_seconds | 分割単位秒（5400=90分。6hジョブ制限に対する安全マージン） |
 | min_end_age_minutes | 配信終了からこの分数待ってから処理開始（VOD確定待ち） |
 | max_vod_age_days | これより古いVODは対象外（初回導入時の一括処理暴発を防ぐ） |
