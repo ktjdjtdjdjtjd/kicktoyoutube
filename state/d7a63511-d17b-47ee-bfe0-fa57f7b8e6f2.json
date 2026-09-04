@@ -4,7 +4,9 @@
   "title": "台風！？ In福岡",
   "start_time": "2026-09-04 01:46:24",
   "duration_s": 21766.0,
-  "status": "dispatched",
+  "status": "done",
   "retries": 0,
-  "dispatched_at": "2026-09-04T09:53:54.048034+00:00"
+  "dispatched_at": "2026-09-04T09:53:54.048034+00:00",
+  "updated_at": "2026-09-04T13:42:07.361682+00:00",
+  "yt_url": "https://www.youtube.com/watch?v=j7BiyfUCggc"
 }
