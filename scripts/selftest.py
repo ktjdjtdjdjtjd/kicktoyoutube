@@ -66,6 +66,29 @@ def find_emoji_font():
     return str(p) if p.exists() else None
 
 
+def test_lane_speeds():
+    """レーン別速度: 平均据え置き(=メモリ据え置き)・全レーン別速度・seedで再現/配信ごとに変化。"""
+    def mk(**dm):
+        dm.setdefault("speed", 300)
+        return strip_render.Params(scale=2 / 3, cfg={"danmaku": dm})
+
+    p = mk(speed_seed="vod-a")
+    sp = p.lane_speed
+    check("speed: レーン数ぶんある", len(sp) == p.n_lanes)
+    mean = sum(sp) / len(sp)
+    check("speed: 平均はbase据え置き(メモリ据え置き)", abs(mean - p.speed) < 1e-9,
+          f"(mean={mean:.4f} base={p.speed:.4f})")
+    check("speed: 全レーンが別速度", len(set(sp)) == p.n_lanes,
+          f"({sorted(round(x) for x in sp)})")
+    check("speed: 同seedは同じ割当 (チャンク跨ぎで流れが繋がる)",
+          mk(speed_seed="vod-a").lane_speed == sp)
+    check("speed: 別seedは別割当 (配信ごとに並びが変わる)",
+          mk(speed_seed="vod-b").lane_speed != sp)
+    check("speed: spread=0で等速に戻せる", len(set(mk(speed_spread=0).lane_speed)) == 1)
+    check("speed: speed_variants指定が優先",
+          len(set(mk(speed_variants=[1.0]).lane_speed)) == 1)
+
+
 def test_layout_and_render():
     font_path = find_font()
     if not font_path:
@@ -86,8 +109,6 @@ def test_layout_and_render():
     check("layout: lane speeds vary", len(set(p.lane_speed)) >= 3 and min(p.lane_speed) > 0,
           f"({sorted(set(round(s) for s in p.lane_speed))})")
     check("layout: lane reused after gap", placed[3][1] == 0, f"(lane={placed[3][1]})")
-    p1 = strip_render.Params(scale=2 / 3, cfg={"danmaku": {"speed_variants": [1.0]}})
-    check("layout: speed_variants=[1.0] -> uniform", len(set(p1.lane_speed)) == 1)
 
     # 絵文字run分割
     runs = shaper.split_runs("草\U0001F602www")
@@ -556,6 +577,7 @@ def test_shorts_title_clean():
 def main():
     test_plan_segments()
     test_tokenize()
+    test_lane_speeds()
     test_layout_and_render()
     test_templates()
     test_yt_title_sanitize()

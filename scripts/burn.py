@@ -210,6 +210,8 @@ def main():
     ap.add_argument("--vod", default="vod.mp4", help="DL先 (既存ならDLスキップ)")
     a = ap.parse_args()
     cfg = kick_api.load_config(a.config)
+    # レーン速度の割当はVODごとに固定する (チャンク/セグメントを跨いでも流れが繋がる)
+    cfg.setdefault("danmaku", {})["speed_seed"] = a.uuid
 
     url = f"https://kick.com/{a.slug}/videos/{a.uuid}"
     want = cfg.get("format_height", 720)

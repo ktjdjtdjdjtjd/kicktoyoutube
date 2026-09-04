@@ -2,7 +2,8 @@
 
 レーン内を等速(speed×レーン別倍率 px/s)にすることで「1レーン=1枚の横長画像」になり、
 ffmpeg は overlay をレーン数ぶん置くだけで済む (libass不使用・エモートはフルカラー)。
-速度をレーンごとに変える(speed_variants)ので、画面上では速いコメと遅いコメが混在して見える。
+速度はレーンごとに散らす(配信ごとのseedで割当)ので、画面上では速いコメと遅いコメが
+混在し、レーン間で追い越しが起きる。倍率は等間隔＝平均はspeedちょうどなのでメモリは据え置き。
 
 - GIFエモート: 位相K枚のストリップ変種を作り、burn側でoverlayを時分割切替してアニメさせる
 - 絵文字: BIZ UDPGothicに無いグリフは Noto Color Emoji (CBDT) でカラー描画
@@ -10,6 +11,7 @@ ffmpeg は overlay をレーン数ぶん置くだけで済む (libass不使用�
 - レーン割当は常に全メッセージ一括・同一パラメータで計算 (セグメント間の連続性)
 """
 import json
+import random
 import sys
 from pathlib import Path
 
@@ -30,14 +32,23 @@ class Params:
     def __init__(self, scale=1.0, cfg=None):
         d = (cfg or {}).get("danmaku", {}) if cfg else {}
         self.scale = scale
-        self.speed = float(d.get("speed", 150)) * scale          # px/s (1080p基準)
+        self.speed = float(d.get("speed", 150)) * scale   # px/s (1080p基準・全レーンの平均)
         self.n_lanes = 14
         # レーンごとに速度を変える (速いコメ/遅いコメが混在して見えるニコ動風)。
         # 同一レーン内は等速なので「1レーン=1枚」のストリップ方式はそのまま成立する。
-        variants = [float(v) for v in d.get("speed_variants",
-                                            [1.0, 0.75, 1.3, 0.9, 1.15, 0.7, 1.4])] or [1.0]
-        self.lane_speed = [self.speed * variants[i % len(variants)]
-                           for i in range(self.n_lanes)]
+        # 既定の倍率は 1±speed_spread の等間隔。等間隔なら平均はちょうど1.0になるので、
+        # ストリップ総幅(=ffmpegの常駐メモリ)は全レーン等速のときと変わらない。
+        variants = d.get("speed_variants")
+        if variants:
+            muls = [float(variants[i % len(variants)]) for i in range(self.n_lanes)]
+        else:
+            spread = max(0.0, min(0.6, float(d.get("speed_spread", 0.35))))
+            muls = [1.0 - spread + 2.0 * spread * i / (self.n_lanes - 1)
+                    for i in range(self.n_lanes)]
+        # どのレーンがどの速度かは配信ごとに変える (seed=VOD uuid)。同じseedなら常に同じ
+        # 割当なので、チャンク/セグメントを跨いでもコメの流れは繋がる。
+        random.Random("danmaku-lane-speed:%s" % d.get("speed_seed", 0)).shuffle(muls)
+        self.lane_speed = [self.speed * m for m in muls]
         self.lane_h = max(24, round(71 * scale))
         self.lane_top = [round((10 + i * 71) * scale) for i in range(self.n_lanes)]
         self.font_px = max(16, round(d.get("font_px", 60) * scale))
