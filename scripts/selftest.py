@@ -167,8 +167,9 @@ def test_yt_title_sanitize():
     check("yt: ninimaru settings", cs["yt_token_env"] == "YT_TOKEN_JSON_NINIMARU"
           and "かつき" in cs["title_template"])
     cs2 = channel_settings(cfg, "hashimotokun78")
+    # 「君/くん」の表記ゆれは追わない。fallbackでなく本人のテンプレが来たかだけ見る
     check("yt: hashimoto settings", cs2["yt_token_env"] == "YT_TOKEN_JSON"
-          and "はしもと君" in cs2["title_template"])
+          and "はしもと" in cs2["title_template"], cs2["title_template"])
     cs3 = channel_settings(cfg, "unknown_channel")
     check("yt: unknown falls back", cs3["yt_token_env"] == "YT_TOKEN_JSON")
     cs4 = channel_settings(cfg, "zingisukan2525")
@@ -316,7 +317,9 @@ def test_chapters_logic():
     check("rf: retitle", retrofit_format.retitle("【ににまる】昼配信【2026/08/05】",
           "220ninimaru") == "【かつき】昼配信【2026/08/05】"
           and retrofit_format.retitle("【はしもと君】朝【2026/08/05】", "hashimotokun78")
-          == "【はしもと君】朝【2026/08/05】")
+          == "【はしもとくん】朝【2026/08/05】"
+          and retrofit_format.retitle("【はしもとくん】朝【2026/08/05】", "hashimotokun78")
+          == "【はしもとくん】朝【2026/08/05】")
 
 
 def test_watch_stale_logic():

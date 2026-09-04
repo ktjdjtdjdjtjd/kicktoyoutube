@@ -20,6 +20,10 @@
   ],
   "category_id": "24",
   "chat_workers": 8,
+  "shorts_channels": [
+    "zingisukan2525"
+  ],
+  "shorts_n": 8,
   "encode_preset": "veryfast",
   "encode_crf": "23",
   "backlog": true,
