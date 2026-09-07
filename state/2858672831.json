@@ -1,7 +1,0 @@
-{
-  "slug": "tenguchan0186",
-  "uuid": "2858672831",
-  "status": "skipped-preexisting",
-  "marked_at": "2026-09-07T02:28:20.294803+00:00",
-  "review_reason": "tenguchan0186パイプライン導入前から存在していたバックログVOD。初回watch実行での一括投入を避けるため導入時にシードした(既存チャンネル追加時の記録が無いための手動マーキング)。"
-}
