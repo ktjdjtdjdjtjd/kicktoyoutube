@@ -4,7 +4,9 @@
   "title": "オーバーウオッチ認定戦。今日で決める決める。",
   "start_time": "2026-08-28T11:58:33Z",
   "duration_s": 10359.0,
-  "status": "dispatched",
+  "status": "done",
   "retries": 0,
-  "dispatched_at": "2026-09-07T03:45:28.495857+00:00"
+  "dispatched_at": "2026-09-07T03:45:28.495857+00:00",
+  "updated_at": "2026-09-07T05:37:46.809776+00:00",
+  "yt_url": "https://www.youtube.com/watch?v=o0P2oMKQnYk"
 }
