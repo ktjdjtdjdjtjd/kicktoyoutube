@@ -48,6 +48,8 @@ def channel_settings(cfg, slug):
         "description_template": cs.get("description_template", cfg["description_template"]),
         "tags": cs.get("tags", cfg.get("tags", [])),
         "privacy": cs.get("privacy", cfg.get("privacy", "unlisted")),
+        # チャンネル側で privacy を明示したら --privacy でも上書き不可（天狗ちゃん=非公開マスト）
+        "privacy_locked": "privacy" in cs,
     }
 
 
@@ -213,7 +215,7 @@ def main():
     cs = channel_settings(cfg, meta["slug"])
     title = sanitize_title(cs["title_template"].format(**fields))
     description = cs["description_template"].format(**fields)
-    privacy = a.privacy or cs["privacy"]
+    privacy = cs["privacy"] if cs["privacy_locked"] else (a.privacy or cs["privacy"])
 
     creds = get_credentials(cs["yt_token_env"])
     # 12h超はYouTubeが拒否するので、投稿前に分割する

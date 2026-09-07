@@ -198,6 +198,7 @@ def test_yt_title_sanitize():
           and "ジンギスカン" in cs4["title_template"])
     cs5 = channel_settings(cfg, "tenguchan0186")
     check("yt: tenguchan privacy is private", cs5["privacy"] == "private", cs5["privacy"])
+    check("yt: tenguchan privacy locked", cs5["privacy_locked"] and not cs4["privacy_locked"])
     # 12h超の分割投稿: タイトルは（i/N）接尾辞・95字上限を接尾辞込みで守る
     from yt_upload import part_title
     check("yt: part title suffix", part_title("タイトル", 1, 2) == "タイトル（1/2）"
