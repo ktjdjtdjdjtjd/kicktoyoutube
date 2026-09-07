@@ -19,6 +19,7 @@ from pathlib import Path
 
 import kick_api
 import chat_fetch
+import twitch_chat_fetch
 import emotes as emotes_mod
 
 
@@ -82,6 +83,23 @@ def resolve_meta(slug, uuid):
     return meta
 
 
+def resolve_meta_twitch(uuid):
+    """TwitchのVOD単体メタをkick_apiのresolve_meta()と同じ形へ整形する。
+    yt-dlpがwatch URLをそのまま扱えるため、sourceはURL文字列でよい
+    (kickのようなm3u8解決は不要)。"""
+    v = twitch_chat_fetch.get_video_meta(uuid)
+    if not v:
+        raise RuntimeError(f"twitch video not found: {uuid}")
+    return {
+        "title": v.get("title") or uuid,
+        "duration_s": float(v.get("lengthSeconds") or 0),
+        "start_time": v.get("publishedAt"),
+        "channel_id": (v.get("owner") or {}).get("login"),
+        "is_live": (v.get("broadcastType") or "").upper() == "LIVE",
+        "source": f"https://www.twitch.tv/videos/{uuid}",
+    }
+
+
 def gh_output(key, value):
     path = os.environ.get("GITHUB_OUTPUT")
     if not path:
@@ -106,7 +124,8 @@ def main():
     outdir = Path(a.out)
     outdir.mkdir(parents=True, exist_ok=True)
 
-    meta = resolve_meta(a.slug, a.uuid)
+    platform = cfg.get("channel_settings", {}).get(a.slug, {}).get("platform", "kick")
+    meta = resolve_meta_twitch(a.uuid) if platform == "twitch" else resolve_meta(a.slug, a.uuid)
     if meta["is_live"]:
         raise RuntimeError("VOD is still live — abort")
     if meta["duration_s"] <= 0:
@@ -141,40 +160,49 @@ def main():
     print(f"title={meta['title']} duration={meta['duration_s']}s "
           f"channel_id={meta['channel_id']} start={meta['start_time']}", file=sys.stderr)
 
-    start_dt = chat_fetch.parse_dt(meta["start_time"])
     chat_dur = meta["duration_s"]
     if a.limit_windows:
         chat_dur = min(chat_dur, a.limit_windows * 5)
-    msgs = chat_fetch.fetch_all_chat(
-        meta["channel_id"], start_dt, chat_dur,
-        workers=cfg.get("chat_workers", 8), keep_emotes=True)
+    if platform == "twitch":
+        # Twitchはエモート合成非対応 (ponytail: プレーンテキストのまま表示。既存の
+        # danmakuパイプラインはテキストのみでも動くため機能的な支障はない)
+        msgs = twitch_chat_fetch.fetch_comments(a.uuid, max_seconds=chat_dur)
+    else:
+        start_dt = chat_fetch.parse_dt(meta["start_time"])
+        msgs = chat_fetch.fetch_all_chat(
+            meta["channel_id"], start_dt, chat_dur,
+            workers=cfg.get("chat_workers", 8), keep_emotes=True)
     with open(outdir / "chat.jsonl", "w", encoding="utf-8") as f:
         for rel, content in msgs:
             f.write(json.dumps({"rel": rel, "content": content}, ensure_ascii=False) + "\n")
 
-    # エモート: リポジトリ直下 emotes/ に蓄積DL → 今回使う分を out/emotes/ へコピー
-    ids = emotes_mod.collect_ids(msgs)
-    added = emotes_mod.download_missing(ids, "emotes", session=kick_api.session())
-    seg_emotes = outdir / "emotes"
-    seg_emotes.mkdir(exist_ok=True)
-    for eid in ids:
-        src = emotes_mod.find_file("emotes", eid)
-        if src:
-            shutil.copy2(src, seg_emotes / src.name)
-    if added:
-        try:
-            from repo_state import commit_paths
-            commit_paths(["emotes"], f"emotes: add {len(added)} ({a.slug}/{a.uuid[:8]})",
-                         fatal=False)
-        except Exception as e:
-            print(f"emote commit skipped: {e}", file=sys.stderr)
+    if platform == "twitch":
+        pass  # Kick専用エモートDL/蓄積はスキップ (Twitchエモートは非対応)
+    else:
+        # エモート: リポジトリ直下 emotes/ に蓄積DL → 今回使う分を out/emotes/ へコピー
+        ids = emotes_mod.collect_ids(msgs)
+        added = emotes_mod.download_missing(ids, "emotes", session=kick_api.session())
+        seg_emotes = outdir / "emotes"
+        seg_emotes.mkdir(exist_ok=True)
+        for eid in ids:
+            src = emotes_mod.find_file("emotes", eid)
+            if src:
+                shutil.copy2(src, seg_emotes / src.name)
+        if added:
+            try:
+                from repo_state import commit_paths
+                commit_paths(["emotes"], f"emotes: add {len(added)} ({a.slug}/{a.uuid[:8]})",
+                             fatal=False)
+            except Exception as e:
+                print(f"emote commit skipped: {e}", file=sys.stderr)
 
     segments = plan_segments(meta["duration_s"], cfg.get("segment_seconds", 5400))
     date = str(meta["start_time"])[:10]
     meta_out = {
         "slug": a.slug,
         "uuid": a.uuid,
-        "url": f"https://kick.com/{a.slug}/videos/{a.uuid}",
+        "url": (f"https://www.twitch.tv/videos/{a.uuid}" if platform == "twitch"
+                else f"https://kick.com/{a.slug}/videos/{a.uuid}"),
         "source": meta.get("source"),
         "title": meta["title"],
         "duration_s": meta["duration_s"],

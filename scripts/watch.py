@@ -22,6 +22,7 @@ from pathlib import Path
 from zoneinfo import ZoneInfo
 
 import kick_api
+import twitch_chat_fetch
 from chat_fetch import parse_dt
 from repo_state import STATE_DIR, commit_state
 
@@ -189,7 +190,12 @@ def main():
 
     videos = []
     for slug in cfg["channels"]:
-        vs = kick_api.get_channel_videos(slug)
+        platform = (cfg.get("channel_settings", {}).get(slug, {})
+                    .get("platform", "kick"))
+        if platform == "twitch":
+            vs = twitch_chat_fetch.get_channel_videos(slug)
+        else:
+            vs = kick_api.get_channel_videos(slug)
         print(f"{slug}: {len(vs)} vods", file=sys.stderr)
         for v in vs:
             v["_slug"] = slug

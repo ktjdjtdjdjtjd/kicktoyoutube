@@ -2,7 +2,8 @@
   "channels": [
     "hashimotokun78",
     "220ninimaru",
-    "zingisukan2525"
+    "zingisukan2525",
+    "tenguchan0186"
   ],
   "format_height": 1080,
   "fallback_height": 720,
@@ -88,6 +89,18 @@
         "Kick配信",
         "キッカーズ",
         "横山緑"
+      ]
+    },
+    "tenguchan0186": {
+      "platform": "twitch",
+      "yt_token_env": "YT_TOKEN_JSON_TENGU",
+      "privacy": "private",
+      "title_template": "【天狗ちゃん】{title}【{date_slash}】",
+      "description_template": "天狗ちゃんのTwitch配信の録画アーカイブです。\n\nタイムスタンプ▽\n\n\n元配信▽\n{title}\n{url}\n\n#天狗ちゃん #Twitch",
+      "tags": [
+        "天狗ちゃん",
+        "Twitch",
+        "Twitch配信"
       ]
     }
   }

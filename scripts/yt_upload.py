@@ -47,6 +47,7 @@ def channel_settings(cfg, slug):
         "title_template": cs.get("title_template", cfg["title_template"]),
         "description_template": cs.get("description_template", cfg["description_template"]),
         "tags": cs.get("tags", cfg.get("tags", [])),
+        "privacy": cs.get("privacy", cfg.get("privacy", "unlisted")),
     }
 
 
@@ -212,7 +213,7 @@ def main():
     cs = channel_settings(cfg, meta["slug"])
     title = sanitize_title(cs["title_template"].format(**fields))
     description = cs["description_template"].format(**fields)
-    privacy = a.privacy or cfg.get("privacy", "unlisted")
+    privacy = a.privacy or cs["privacy"]
 
     creds = get_credentials(cs["yt_token_env"])
     # 12h超はYouTubeが拒否するので、投稿前に分割する

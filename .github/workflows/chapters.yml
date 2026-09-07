@@ -114,4 +114,5 @@ jobs:
           YT_TOKEN_JSON: ${{ secrets.YT_TOKEN_JSON }}
           YT_TOKEN_JSON_NINIMARU: ${{ secrets.YT_TOKEN_JSON_NINIMARU }}
           YT_TOKEN_JSON_WAINAINA: ${{ secrets.YT_TOKEN_JSON_WAINAINA }}
+          YT_TOKEN_JSON_TENGU: ${{ secrets.YT_TOKEN_JSON_TENGU }}
         run: PYTHONPATH=scripts python scripts/chapters.py --mode finalize

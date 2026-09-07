@@ -16,6 +16,70 @@ CLIENT_ID = "kimne78kx3ncx6brgo4mv6wki5h1ko"  # Twitch web公開クライアン�
 COMMENTS_HASH = "b70a3591ff0f4e0313d126c6a1502d79a1c02baebb288227c582044aa76adf6a"
 
 
+def gql_query(query, max_attempts=6):
+    """persistedQueryではない生クエリ版 (VOD一覧/単体メタ取得用。実測で通ることを確認済み)。"""
+    body = json.dumps({"query": query}).encode("utf-8")
+    delay = 0.5
+    for attempt in range(1, max_attempts + 1):
+        req = urllib.request.Request(GQL, data=body, headers={
+            "Client-ID": CLIENT_ID,
+            "Content-Type": "application/json",
+            "User-Agent": "Mozilla/5.0",
+        }, method="POST")
+        try:
+            with urllib.request.urlopen(req, timeout=20) as r:
+                return json.loads(r.read())
+        except urllib.error.HTTPError as e:
+            if e.code in (429, 500, 502, 503, 504):
+                time.sleep(delay)
+                delay = min(delay * 2, 15)
+                continue
+            print(f"HTTPError {e.code}", file=sys.stderr)
+            return None
+        except Exception as e:
+            print(f"attempt {attempt} failed: {e}", file=sys.stderr)
+            time.sleep(delay)
+            delay = min(delay * 2, 15)
+    return None
+
+
+def get_channel_videos(login, first=100):
+    """ログイン名のARCHIVE VOD一覧を、kick_api.get_channel_videos()と同じ形に整形して返す。
+
+    watch.py の pick_dispatches はこの形 (video.uuid / start_time / duration[ms] /
+    session_title / is_live) しか見ないので、呼び出し側はプラットフォーム差分を
+    意識しなくてよい。
+    """
+    q = ('query{user(login:"%s"){videos(first:%d, type:ARCHIVE){edges{node{'
+         'id title publishedAt lengthSeconds}}}}}' % (login, first))
+    res = gql_query(q)
+    user = ((res or {}).get("data") or {}).get("user")
+    if not user:
+        return []
+    out = []
+    for edge in (user.get("videos") or {}).get("edges") or []:
+        node = edge.get("node") or {}
+        vid = node.get("id")
+        if not vid:
+            continue
+        out.append({
+            "video": {"uuid": vid},
+            "start_time": node.get("publishedAt"),
+            "duration": int(node.get("lengthSeconds") or 0) * 1000,
+            "session_title": node.get("title") or "",
+            "is_live": False,
+        })
+    return out
+
+
+def get_video_meta(video_id):
+    """VOD単体メタ (plan.py の resolve_meta 用)。"""
+    q = ('query{video(id:"%s"){id title publishedAt lengthSeconds broadcastType '
+         'owner{id login}}}' % video_id)
+    res = gql_query(q)
+    return ((res or {}).get("data") or {}).get("video")
+
+
 def gql_post(body, max_attempts=6):
     data = json.dumps(body).encode("utf-8")
     delay = 0.5
