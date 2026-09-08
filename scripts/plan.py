@@ -100,6 +100,15 @@ def resolve_meta_twitch(uuid):
     }
 
 
+def resolve_meta_any(slug, uuid, cfg=None, config_path="config.json"):
+    """slug の platform 設定を見て kick / twitch のメタ解決へ振り分ける。
+    呼び出し側が cfg を持っていないときは config.json を自前で読む。"""
+    if cfg is None:
+        cfg = kick_api.load_config(config_path)
+    platform = (cfg.get("channel_settings", {}).get(slug) or {}).get("platform", "kick")
+    return resolve_meta_twitch(uuid) if platform == "twitch" else resolve_meta(slug, uuid)
+
+
 def gh_output(key, value):
     path = os.environ.get("GITHUB_OUTPUT")
     if not path:
@@ -124,8 +133,7 @@ def main():
     outdir = Path(a.out)
     outdir.mkdir(parents=True, exist_ok=True)
 
-    platform = cfg.get("channel_settings", {}).get(a.slug, {}).get("platform", "kick")
-    meta = resolve_meta_twitch(a.uuid) if platform == "twitch" else resolve_meta(a.slug, a.uuid)
+    meta = resolve_meta_any(a.slug, a.uuid, cfg)
     if meta["is_live"]:
         raise RuntimeError("VOD is still live — abort")
     if meta["duration_s"] <= 0:

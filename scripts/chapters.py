@@ -450,7 +450,7 @@ def _finish_with_gemini(path, st, lines, duration, cfg, ccfg, api_key, dry_run):
 def cmd_plan(cfg, ccfg, only_uuid, dry_run, out_dir="out"):
     """候補を1本選び、試行を消費し、文字起こしを区間分割したmatrixを出力する。
     resolve_metaは duration_s と source を返すのでffprobe不要。"""
-    from plan import gh_output, plan_segments, resolve_meta
+    from plan import gh_output, plan_segments, resolve_meta_any
     path, st = pick_candidate(only_uuid or None)
     if not st:
         print("no candidate")
@@ -463,7 +463,7 @@ def cmd_plan(cfg, ccfg, only_uuid, dry_run, out_dir="out"):
         commit_paths([path], f"state: chapters attempt {st['chapters_attempts']} "
                              f"({st.get('uuid', '')[:8]})", fatal=False)
     try:
-        meta = resolve_meta(st["slug"], st["uuid"])
+        meta = resolve_meta_any(st["slug"], st["uuid"], cfg)
         if not meta.get("source") or meta.get("duration_s", 0) <= 0:
             raise RuntimeError("source/duration unavailable (VOD expired?)")
     except Exception as e:
@@ -492,8 +492,8 @@ def cmd_plan(cfg, ccfg, only_uuid, dry_run, out_dir="out"):
 def cmd_transcribe(ccfg, slug, uuid, idx, start, end, out_dir="segs"):
     """区間 [start,end) だけDL→文字起こしし、絶対時刻の行を seg_NNN.json に出力。
     source は毎回 resolve_meta で取り直す (署名URL失効に強くする)。"""
-    from plan import resolve_meta
-    meta = resolve_meta(slug, uuid)
+    from plan import resolve_meta_any
+    meta = resolve_meta_any(slug, uuid)
     if not meta.get("source"):
         raise RuntimeError("source unavailable")
     win = f"win_{idx:03d}.mp4"
@@ -540,7 +540,7 @@ def cmd_finalize(cfg, ccfg, api_key, dry_run, plan_dir="out", seg_dir="segs"):
 
 def cmd_all(cfg, ccfg, api_key, only_uuid, dry_run):
     """単一ジョブで一気通貫 (ローカル/dispatch用の後方互換パス)。"""
-    from plan import resolve_meta
+    from plan import resolve_meta_any
     path, st = pick_candidate(only_uuid or None)
     if not st:
         print("no candidate")
@@ -552,7 +552,7 @@ def cmd_all(cfg, ccfg, api_key, only_uuid, dry_run):
         commit_paths([path], f"state: chapters attempt {st['chapters_attempts']} "
                              f"({st.get('uuid', '')[:8]})", fatal=False)
     try:
-        meta = resolve_meta(st["slug"], st["uuid"])
+        meta = resolve_meta_any(st["slug"], st["uuid"], cfg)
         if not meta.get("source"):
             raise RuntimeError("source unavailable (VOD expired?)")
     except Exception as e:

@@ -602,6 +602,25 @@ def test_shorts_title_clean():
     check("sp: 出力形式にラベル例を残していない", "案1\n案2" not in sp.TITLE_PROMPT)
 
 
+def test_resolve_meta_dispatch():
+    """platform=twitch のチャンネルを kick 側へ流さない (Twitch VODが
+    毎回 skipped-no-source になった実バグの再発防止)。"""
+    import plan
+    import kick_api
+    cfg = kick_api.load_config("config.json")
+    called = []
+    orig_kick, orig_twitch = plan.resolve_meta, plan.resolve_meta_twitch
+    plan.resolve_meta = lambda slug, uuid: called.append("kick")
+    plan.resolve_meta_twitch = lambda uuid: called.append("twitch")
+    try:
+        plan.resolve_meta_any("tenguchan0186", "1", cfg)
+        plan.resolve_meta_any("zingisukan2525", "1", cfg)
+        plan.resolve_meta_any("未設定チャンネル", "1", cfg)
+    finally:
+        plan.resolve_meta, plan.resolve_meta_twitch = orig_kick, orig_twitch
+    check("meta: platformで振り分ける", called == ["twitch", "kick", "kick"], str(called))
+
+
 def main():
     test_plan_segments()
     test_tokenize()
@@ -611,6 +630,7 @@ def main():
     test_yt_title_sanitize()
     test_thumbnail()
     test_chapters_logic()
+    test_resolve_meta_dispatch()
     test_watch_stale_logic()
     test_mark_done_import()
     test_burn_request()
