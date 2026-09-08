@@ -60,7 +60,8 @@ def remote(base, token, cid, payload=None):
     opener = urllib.request.build_opener(NoRedirect())
     for attempt in range(3):
         request = urllib.request.Request(url, data=payload, method='PUT' if payload else 'HEAD',
-                    headers={'Authorization': 'Bearer '+token, 'Content-Type': 'application/json'})
+                    headers={'Authorization': 'Bearer '+token, 'Content-Type': 'application/json',
+                             'User-Agent': 'kicktoyoutube-board/1.0'})
         try:
             with opener.open(request, timeout=120) as response:
                 return response.status
