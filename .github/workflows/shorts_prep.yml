@@ -67,6 +67,15 @@ jobs:
       # 選定ロジックは手元の候補ボードからの移植(実データ20件で結果一致を確認済み)
       - name: Pick candidates (segments 未指定のときだけ)
         run: PYTHONPATH=scripts python scripts/shorts_pick.py
+      # Independent of vertical draft rendering. Existing candidates/decisions are never replaced.
+      - name: Append padded previews to private selection board
+        id: board
+        continue-on-error: true
+        if: vars.BOARD_ENABLED == 'true'
+        env:
+          BOARD_URL: ${{ vars.BOARD_URL }}
+          BOARD_INGEST_TOKEN: ${{ secrets.BOARD_INGEST_TOKEN }}
+        run: PYTHONPATH=scripts python scripts/board_publish.py
       - name: Prep clips
         env:
           GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
@@ -81,3 +90,8 @@ jobs:
             out_shorts/
             !out_shorts/fonts/
           retention-days: 3
+      - name: Report board upload failure after preserving the original shortpack
+        if: always() && steps.board.outcome == 'failure'
+        run: |
+          echo 'Candidate board upload failed. Existing candidates are safe; rerun to retry.'
+          exit 1
