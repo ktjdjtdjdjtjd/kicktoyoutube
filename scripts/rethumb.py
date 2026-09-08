@@ -45,6 +45,27 @@ def fetch_existing_thumb(video_id, out_png):
     return False
 
 
+def is_old_layout(png):
+    """旧レイアウト(上部に黒半透明帯・中央に赤帯なし)のサムネか。
+    実測(2026-09-08): 旧=上部L≈64-73/中央赤み≈7-9、新=上部L≈130/中央赤み≈93-96。"""
+    from PIL import Image, ImageChops, ImageStat
+    im = Image.open(png).convert("RGB").resize((1280, 720))
+    top_l = ImageStat.Stat(im.crop((0, 15, 1280, 140)).convert("L")).mean[0]
+    r, g, b = im.crop((0, 300, 1280, 420)).split()
+    mid_red = ImageStat.Stat(ImageChops.subtract(r, ImageChops.lighter(g, b))).mean[0]
+    return top_l < 100 and mid_red < 40
+
+
+def crop_old_layout(png):
+    """旧レイアウトの帯(上)と日付箱(右下)を外して16:9で切り出し、フレームとして上書きする。"""
+    from PIL import Image
+    im = Image.open(png).convert("RGB").resize((1280, 720))
+    y0, y1 = 158, 600
+    w = int((y1 - y0) * 16 / 9)
+    x0 = (1280 - w) // 2
+    im.crop((x0, y0, x0 + w, y1)).resize((1280, 720), Image.LANCZOS).save(png)
+
+
 def process_one(uuid, st, cfg, font, emoji_font, dry_run):
     slug = st["slug"]
     meta = None
@@ -85,15 +106,24 @@ def process_one(uuid, st, cfg, font, emoji_font, dry_run):
             got_frame = True
         except Exception as e:
             print(f"source frame failed ({e})", file=sys.stderr)
+    if not got_frame and fetch_existing_thumb(video_id, frame) and is_old_layout(frame):
+        # source失効 + 旧レイアウト(上部帯)のサムネ: 帯と日付箱を外して切り出した
+        # 綺麗なフレームを土台にする (reband だと中央帯と二重になる)。2026-09-08
+        crop_old_layout(frame)
+        got_frame = True
+        print("using cropped old-layout thumbnail as base", file=sys.stderr)
     if not got_frame:
-        # source失効: 既存サムネを土台にタイトル帯だけ不透明帯で塗り直す
-        if fetch_existing_thumb(video_id, frame):
-            band_alpha, band_extra = 255, 12
-            print("using existing thumbnail as base (reband)", file=sys.stderr)
-        else:
-            # 既存サムネも無い場合の最終手段 (焼き込み済み映像からフレーム)
+        # 焼き込み済みYouTube映像からフレームを抜く。既存サムネの reband は最終手段。
+        try:
             fetch_frame_via_youtube(st["yt_url"], duration_s / 3, frame,
                                     clip=f"clip_{uuid[:8]}.mp4")
+            print("using frame from YouTube video", file=sys.stderr)
+        except Exception as e:
+            print(f"youtube frame failed ({e})", file=sys.stderr)
+            if not fetch_existing_thumb(video_id, frame):
+                raise
+            band_alpha, band_extra = 255, 12
+            print("using existing thumbnail as base (reband)", file=sys.stderr)
 
     out = f"thumb_{uuid[:8]}.jpg"
     date_slash = str(start_time)[:10].replace("-", "/")

@@ -36,6 +36,22 @@ def _is_hira(ch: str) -> bool:
     return "ぁ" <= ch <= "ゖ" or ch in "ゝゞー"
 
 
+NO_SPLIT_WORDS = ("女の子", "男の子", "この", "その", "あの", "どの")
+
+
+def _script(ch: str) -> str:
+    """文字種: h=ひらがな k=カタカナ a=英数 j=漢字 ?=その他"""
+    if _is_hira(ch):
+        return "h"
+    if "ァ" <= ch <= "ヺ" or ch in "ーヽヾ":
+        return "k"
+    if ch.isalnum() and (ch.isascii() or "０" <= ch <= "ｚ"):
+        return "a"
+    if "一" <= ch <= "鿿" or "㐀" <= ch <= "䶿" or ch in "々〆":
+        return "j"
+    return "?"
+
+
 def _break_penalty(s: str, i: int) -> float:
     """s[i-1] と s[i] の間で折るときの「不自然さ」。小さいほど良い切れ目。
 
@@ -47,6 +63,15 @@ def _break_penalty(s: str, i: int) -> float:
         return 0.0            # 文字起こしが空けた句切り。最優先で使う
     if prev in PUNCT:
         return 1.0
+    for w in NO_SPLIT_WORDS:   # 助詞を含む固定語（「女の|子」）は語中扱い
+        k = s.rfind(w, max(0, i - len(w)), i + len(w))
+        if k != -1 and k < i < k + len(w):
+            return 30.0
+    sp, sn = _script(prev), _script(nxt)
+    if sp == sn and sp in "ka":
+        return 30.0           # カタカナ語・英数字の途中（「スコ|ア」「10|0」）。実例あり 2026-09-08
+    if sp == "j" and sn == "h" and (i < 2 or _script(s[i - 2]) != "j"):
+        return 20.0           # 一字漢字+送り仮名（「起|こした」「終|われない」）は語の内部
     both_hira = _is_hira(prev) and _is_hira(nxt)
     if prev in PARTICLES:
         return 12.0 if both_hira else 4.0   # 助詞でも次がひらがななら活用の途中を疑う
@@ -182,6 +207,14 @@ def _selftest() -> None:
     assert house_style("そうだね。まあいいや。") == "そうだね まあいいや"
     assert house_style("えーっと、これはね") == "えーっと、これはね"
     assert house_style("") == ""
+
+    # カタカナ語・数字・一字漢字+送り仮名の途中で割らない (サムネで実際に割れていた)
+    for t, bad in (("ボーリングで100スコア超えるまで終われない", ("スコ", "10")),
+                   ("盛岡のわんこそばチャレンジ失敗に終わりました", ("チャレン",)),
+                   ("俺の後輩が問題行動を起こしたので説教します", ("を起",)),
+                   ("【彼女候補3人目】45歳女の子とのお泊りデート配信", ("女の",))):
+        for ln in split_lines(t, 11, 3):
+            assert not any(ln.endswith(b) for b in bad), (t, ln)
 
     print("jp_wrap selftest: OK")
 

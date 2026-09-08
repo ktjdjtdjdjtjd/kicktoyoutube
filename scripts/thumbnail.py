@@ -159,16 +159,42 @@ def draw_title_runs(im, draw, shaper, title, x, cy, stroke_w):
 
 
 def _split_two_lines(title):
-    """タイトルを2行に分割する。jp_wrapの意味的分割を優先し、ダメなら文字数で機械的に折半する。"""
-    import math
+    """タイトルを2行に分割する。日本語として変な位置(句点の前・語の途中)で折らない。
+    1) 空白・文末記号(。！？…や「・・・」。連なりは末尾まで前行)のうち最も均等な位置
+    2) それが無ければ jp_wrap の切れ目コスト + 行長の偏り が最小の位置
+    2026-09-08 ユーザー指摘(「自首しにいきました|。全てを話します！」で割れていた)。"""
+    import re
+    title = title.strip()
     n = len(title)
     if n < 2:
         return title, ""
-    per_line = math.ceil(n / 2)
-    lines = jp_wrap.split_lines(title, per_line=per_line, max_lines=2)
-    if len(lines) == 2 and lines[0] and lines[1]:
-        return lines[0], lines[1]
-    return title[:n // 2], title[n // 2:]
+
+    def _ok(i):   # 両行が空でなく、長い方が全体の8割以下
+        return 0 < i < n and max(i, n - i) <= n * 0.8
+
+    cands = []
+    for m in re.finditer(r"[ 　]+|[。！？!?．…‥]+|・{2,}", title):
+        for i in (m.start(), m.end()):
+            if _ok(i) and title[i] not in jp_wrap.NO_START:
+                cands.append(i)
+    if cands:
+        i = min(cands, key=lambda i: abs(2 * i - n))
+        return title[:i].strip(), title[i:].strip()
+
+    def _cost(i):
+        if not jp_wrap._can_break(title, i):
+            return None
+        pen = jp_wrap._break_penalty(title, i)
+        if title[i - 1] in "、，":
+            pen = 1.5
+        elif title[i - 1] in "」』）】" or title[i] in "「『（【":
+            pen = 1.0
+        return pen + abs(2 * i - n)
+
+    scored = [(c, i) for i in range(1, n) if (c := _cost(i)) is not None]
+    i = min(scored)[1] if scored else n // 2
+    a, b = title[:i].strip(), title[i:].strip()
+    return (a, b) if a and b else (title[:n // 2], title[n // 2:])
 
 
 def _fit_multiline(lines, font_path, emoji_font_path, max_width, start_px=120, min_px=48, step=2):
