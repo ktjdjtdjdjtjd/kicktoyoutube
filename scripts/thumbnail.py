@@ -9,6 +9,7 @@ Kickのsource m3u8から直接取得(クリーンな1セグメントのみDL)。
 """
 import argparse
 import json
+import re
 import subprocess
 import sys
 import tempfile
@@ -16,9 +17,11 @@ from pathlib import Path
 
 from PIL import Image, ImageDraw, ImageFont
 
+import jp_wrap
 from strip_render import EMOJI_RENDER_PX, TextShaper
 
 W, H = 1280, 720
+RED = (0xE6, 0x00, 0x12)
 MARGIN = 24
 
 
@@ -155,32 +158,166 @@ def draw_title_runs(im, draw, shaper, title, x, cy, stroke_w):
             x += shaper.run_width(kind, s)
 
 
+def _split_two_lines(title):
+    """タイトルを2行に分割する。jp_wrapの意味的分割を優先し、ダメなら文字数で機械的に折半する。"""
+    import math
+    n = len(title)
+    if n < 2:
+        return title, ""
+    per_line = math.ceil(n / 2)
+    lines = jp_wrap.split_lines(title, per_line=per_line, max_lines=2)
+    if len(lines) == 2 and lines[0] and lines[1]:
+        return lines[0], lines[1]
+    return title[:n // 2], title[n // 2:]
+
+
+def _fit_multiline(lines, font_path, emoji_font_path, max_width, start_px=120, min_px=48, step=2):
+    """複数行すべてがmax_widthに収まる最大pxのshaperを (px, shaper) で返す。"""
+    px = start_px
+    shaper = TextShaper(font_path, emoji_font_path, _ShaperParams(px))
+    while px > min_px:
+        shaper = TextShaper(font_path, emoji_font_path, _ShaperParams(px))
+        if all(title_width(shaper, ln) <= max_width for ln in lines if ln):
+            return px, shaper
+        px -= step
+    return min_px, shaper
+
+
+def _truncate_to_width(shaper, text, max_width):
+    """末尾を「…」で切り詰めてmax_widthに収める (fit_titleの切り詰めと同じ考え方)。"""
+    if title_width(shaper, text) <= max_width:
+        return text
+    while text and title_width(shaper, text + "…") > max_width:
+        text = text[:-1]
+    return (text + "…") if text else ""
+
+
+def _fit_title_p10s(title, font_path, emoji_font_path, max_width):
+    """中央帯タイトルのフィッティング連鎖。
+    150px単行 -> 90px単行 -> 2行(120px上限, 48pxまで縮小) -> それでも収まらなければ2行目末尾を省略。
+    戻り値: (lines, shaper)。"""
+    for px in (150, 90):
+        shaper = TextShaper(font_path, emoji_font_path, _ShaperParams(px))
+        if title_width(shaper, title) <= max_width:
+            return [title], shaper
+
+    line1, line2 = _split_two_lines(title)
+    px, shaper = _fit_multiline([line1, line2], font_path, emoji_font_path, max_width,
+                                start_px=120, min_px=48)
+    if title_width(shaper, line2) > max_width:
+        line2 = _truncate_to_width(shaper, line2, max_width)
+    if title_width(shaper, line1) > max_width:
+        line1 = _truncate_to_width(shaper, line1, max_width)
+    return [line1, line2], shaper
+
+
+def _text_block_size(draw, text, font, stroke_width):
+    bbox = draw.textbbox((0, 0), text, font=font, stroke_width=stroke_width)
+    return bbox[2] - bbox[0], bbox[3] - bbox[1]
+
+
+def _label(im, x, y, text, font, fg, bg, pad=(22, 10), alpha=255, align="left"):
+    """角アリの矩形ラベルを描く(RGBA レイヤ合成)。align="right" なら x を右端として扱う。戻り値は高さ。"""
+    bb = ImageDraw.Draw(im).textbbox((0, 0), text, font=font)
+    w = bb[2] - bb[0] + pad[0] * 2
+    h = bb[3] - bb[1] + pad[1] * 2
+    x0 = x - w if align == "right" else x
+    lay = Image.new("RGBA", im.size, (0, 0, 0, 0))
+    ImageDraw.Draw(lay).rectangle((x0, y, x0 + w, y + h), fill=bg + (alpha,))
+    im.alpha_composite(lay)
+    ImageDraw.Draw(im).text((x0 + pad[0] - bb[0], y + pad[1] - bb[1]), text, font=font, fill=fg)
+    return h
+
+
+def draw_channel_tag(im, font_path, name, sub="アーカイブ(コメあり)"):
+    """右上=チャンネル名(赤地白字・大)、左上=アーカイブ(コメあり)(白地赤字・小)。角アリ。
+    font_path はタグ専用フォント(タイトルの keifont とは別に指定できる)。"""
+    m, y = 40, 36
+    if name:
+        _label(im, im.width - m, y, name, ImageFont.truetype(font_path, 44), (255, 255, 255), RED, align="right")
+    if sub:
+        _label(im, m, y, sub, ImageFont.truetype(font_path, 28), RED, (255, 255, 255), pad=(16, 8), alpha=230)
+
+
+def channel_display_name(slug, config_path=None):
+    """config.json の title_template 先頭の【…】をチャンネル表示名として返す。無ければ ''。"""
+    try:
+        cfg_path = Path(config_path) if config_path else Path(__file__).resolve().parent.parent / "config.json"
+        cfg = json.loads(cfg_path.read_text(encoding="utf-8"))
+        tpl = (cfg.get("channel_settings", {}).get(slug or "", {}).get("title_template")
+               or cfg.get("title_template", ""))
+        m = re.match(r"【(.+?)】", tpl)
+        return m.group(1) if m else ""
+    except Exception as e:
+        print(f"[thumbnail] channel name lookup failed: {e}", file=sys.stderr)
+        return ""
+
+
 def compose(frame_png, title, date_slash, font_path, out_jpg, emoji_font_path="",
-            band_alpha=150, band_extra=0):
-    """band_alpha=255 + band_extra>0 は既存サムネの上からタイトル帯だけ
-    塗り直すモード (rethumbの豆腐修理用)。"""
-    im = Image.open(frame_png).convert("RGB").resize((W, H), Image.LANCZOS)
+            band_alpha=150, band_extra=0, title_font_path="",
+            tag_name="", tag_sub="アーカイブ(コメあり)", tag_font_path=""):
+    """P10s: 縦中央に赤半透明帯+白文字(縁なし)のタイトル、配信日は左下(白文字+黒縁)。
+
+    band_alpha=255 は既存サムネの上から帯だけ塗り直すモード (rethumbの豆腐修理用、
+    実質不透明になる)。band_extra は旧レイアウト(上部帯)で帯の高さを追加調整するための
+    引数だったが、新レイアウトは帯の高さをテキストブロックから直接算出するため未使用
+    (rethumb.py 側の既存呼び出しとの互換のため引数だけ残す)。
+    """
+    tfont_path = title_font_path or str(
+        Path(__file__).resolve().parent.parent / "fonts" / "keifont.ttf")
+    if not Path(tfont_path).exists():
+        print(f"[thumbnail] title font not found: {tfont_path} -> fallback {font_path}",
+              file=sys.stderr)
+        tfont_path = font_path
+    # タグ(チャンネル名/アーカイブ)専用フォント = 源暎ポップル。無ければタイトルと同じ keifont
+    gfont_path = tag_font_path or str(
+        Path(__file__).resolve().parent.parent / "fonts" / "GenEiPOPle-Bk.ttf")
+    if not Path(gfont_path).exists():
+        print(f"[thumbnail] tag font not found: {gfont_path} -> fallback {tfont_path}", file=sys.stderr)
+        gfont_path = tfont_path
+
+    im = Image.open(frame_png).convert("RGB").resize((W, H), Image.LANCZOS).convert("RGBA")
+
+    max_w = W - 120
+    lines, shaper = _fit_title_p10s(title, tfont_path, emoji_font_path, max_w)
+    ascent, descent = shaper.font.getmetrics()
+    line_h = ascent + descent
+    block_h = line_h * len(lines)
+    band_pad = 30
+    band_h = block_h + band_pad * 2
+
+    # 赤半透明帯は別レイヤーに描いてalpha_compositeで合成する
+    # (ImageDraw.rectangleでRGBAを直接ベース画像に塗ると下地との混色にならず不透明になるため)
+    band_layer = Image.new("RGBA", (W, H), (0, 0, 0, 0))
+    band_draw = ImageDraw.Draw(band_layer)
+    band_y0 = H / 2 - band_h / 2
+    band_y1 = H / 2 + band_h / 2
+    band_draw.rectangle([0, band_y0, W, band_y1], fill=RED + (band_alpha,))
+    im = Image.alpha_composite(im, band_layer)
+
     draw = ImageDraw.Draw(im, "RGBA")
+    top = H / 2 - block_h / 2
+    for i, line in enumerate(lines):
+        if not line:
+            continue
+        cy = top + line_h * i + line_h / 2
+        w = title_width(shaper, line)
+        x = (W - w) / 2
+        draw_title_runs(im, draw, shaper, line, x, cy, stroke_w=0)
 
-    # タイトル帯 (上部)
-    shaper, title_fit = fit_title(title, font_path, emoji_font_path, W - 80)
-    band_h = shaper.p.font_px + 44
-    draw.rectangle([0, MARGIN, W, MARGIN + band_h + band_extra],
-                   fill=(0, 0, 0, band_alpha))
-    draw_title_runs(im, draw, shaper, title_fit, 40, MARGIN + band_h // 2,
-                    stroke_w=6)
+    # 右上=チャンネル名 / 左上=アーカイブ(コメあり)
+    if tag_name or tag_sub:
+        draw_channel_tag(im, gfont_path, tag_name, tag_sub)
+        draw = ImageDraw.Draw(im, "RGBA")
 
-    # 配信日 (右下)
-    font_d = ImageFont.truetype(font_path, 56)
-    tw = font_d.getlength(date_slash)
-    pad = 18
-    x1 = W - tw - pad * 2 - MARGIN
-    y1 = H - 56 - pad * 2 - MARGIN
-    draw.rounded_rectangle([x1, y1, W - MARGIN, H - MARGIN], radius=12,
-                           fill=(0, 0, 0, 170))
-    draw.text((x1 + pad, (y1 + H - MARGIN) // 2), date_slash, font=font_d,
-              anchor="lm", fill=(255, 255, 255))
+    # 配信日 (左下、白文字+黒縁4px)
+    font_d = ImageFont.truetype(tfont_path, 48)
+    _, dh = _text_block_size(draw, date_slash, font_d, 4)
+    dx, dy = 40, H - 40 - dh
+    draw.text((dx, dy), date_slash, font=font_d, fill=(255, 255, 255),
+              stroke_width=4, stroke_fill=(0, 0, 0))
 
+    im = im.convert("RGB")
     im.save(out_jpg, quality=90)
     # サムネAPIの上限2MBを保険で守る
     if Path(out_jpg).stat().st_size > 2_000_000:
@@ -196,6 +333,10 @@ def main():
     ap.add_argument("--emoji-font", default="fonts/NotoColorEmoji.ttf")
     ap.add_argument("--out", default="thumb.jpg")
     ap.add_argument("--fallback-video", default="")
+    ap.add_argument("--title-font", default="")
+    ap.add_argument("--tag-name", default=None, help="右上タグのチャンネル名(省略時は config.json から自動、空文字で非表示)")
+    ap.add_argument("--tag-sub", default="アーカイブ(コメあり)")
+    ap.add_argument("--tag-font", default="", help="タグ専用フォント(省略時は fonts/GenEiPOPle-Bk.ttf)")
     a = ap.parse_args()
     meta = json.loads(Path(a.meta).read_text(encoding="utf-8"))
     peak = find_hype_peak(a.chat, meta["duration_s"])
@@ -214,8 +355,10 @@ def main():
             raise
 
     date_slash = str(meta["date"]).replace("-", "/")
+    tag_name = a.tag_name if a.tag_name is not None else channel_display_name(meta.get("slug"))
     compose(frame, meta["title"], date_slash, a.font, a.out,
-            emoji_font_path=a.emoji_font)
+            emoji_font_path=a.emoji_font, title_font_path=a.title_font,
+            tag_name=tag_name, tag_sub=a.tag_sub, tag_font_path=a.tag_font)
 
 
 if __name__ == "__main__":

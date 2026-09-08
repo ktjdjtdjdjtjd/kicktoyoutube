@@ -98,7 +98,8 @@ def process_one(uuid, st, cfg, font, emoji_font, dry_run):
     out = f"thumb_{uuid[:8]}.jpg"
     date_slash = str(start_time)[:10].replace("-", "/")
     thumbnail.compose(frame, title, date_slash, font, out, emoji_font_path=emoji_font,
-                      band_alpha=band_alpha, band_extra=band_extra)
+                      band_alpha=band_alpha, band_extra=band_extra,
+                      tag_name=thumbnail.channel_display_name(slug))
     if dry_run:
         print(f"dry-run: generated {out}")
         return

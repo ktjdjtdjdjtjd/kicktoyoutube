@@ -1,0 +1,6 @@
+GenEiPOPle-Bk.ttf — 源暎ポップル (GenEi POPle) Ver 1.00
+Source : http://okoneya.jp/font/  (author: o_tamon)
+License: SIL Open Font License 1.1 (OFLicense.txt in the original package)
+Notes  : Kana designed by the author; kanji derived from LINE Seed JP (OFL).
+         Redistributed unmodified in this repository for the thumbnail generator
+         (scripts/thumbnail.py: channel-name / archive tag labels).

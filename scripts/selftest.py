@@ -226,14 +226,39 @@ def test_thumbnail():
         frame = d / "f.png"
         Image.new("RGB", (1280, 720), (30, 60, 90)).save(frame)
         out = d / "t.jpg"
-        thumbnail.compose(str(frame), "テストタイトル" * 6, "2026/08/01", font_path, str(out))
+        thumbnail.compose(str(frame), "テストタイトル" * 6, "2026/08/01", font_path, str(out), tag_name="ジンギスカン")
         check("thumb: output exists", out.exists() and out.stat().st_size > 10000)
         with Image.open(out) as im:
             check("thumb: 1280x720", im.size == (1280, 720))
             px = im.convert("RGB").load()
-            # 座布団のパディング部 (文字に当たらない右下端寄り) を見る
+            # P10s: 旧デザインの右下黒座布団は廃止。右下角は素のフレーム背景色のままのはず。
             corner = px[1280 - 34, 720 - 34]
-            check("thumb: date plate bottom-right", sum(corner) < 200, f"({corner})")
+            check("thumb: no bottom-right date plate", all(abs(a - b) < 20 for a, b in
+                  zip(corner, (30, 60, 90))), f"({corner})")
+            # P10s: 配信日は左下 (白文字+黒縁)。その領域に白い文字ピクセルがあること。
+            found_white = any(
+                all(c > 200 for c in px[x, y])
+                for x in range(40, 260, 2)
+                for y in range(720 - 90, 720 - 5, 2)
+            )
+            check("thumb: date bottom-left white text", found_white)
+            tr = [im.getpixel((x, y)) for x in range(1000, 1240, 8) for y in range(40, 90, 5)]
+            check("thumb: top-right channel name (red label)",
+                  any(p[0] > 180 and p[1] < 90 and p[2] < 90 for p in tr))
+            tl = [im.getpixel((x, y)) for x in range(44, 200, 6) for y in range(40, 70, 4)]
+            check("thumb: top-left archive label (white)",
+                  any(all(c > 225 for c in p) for p in tl))
+            check("thumb: tag font bundled (GenEiPOPle-Bk.ttf)",
+                  (Path(__file__).parent.parent / "fonts" / "GenEiPOPle-Bk.ttf").exists())
+            check("thumb: channel name from config",
+                  thumbnail.channel_display_name("zingisukan2525") == "ジンギスカン" and
+                  thumbnail.channel_display_name("220ninimaru") == "かつき" and
+                  thumbnail.channel_display_name("hashimotokun78") == "はしもとくん" and
+                  thumbnail.channel_display_name("nope") == "はしもと君")
+            # 中央帯: 赤半透明のバンドが縦中央にあること (フレーム背景と混色した赤みがかった色)
+            band_px = px[1280 // 2, 720 // 2]
+            check("thumb: center red band present", band_px[0] > band_px[2] and band_px[0] > 60,
+                  f"({band_px})")
         # タイトル内の絵文字がカラーで描けること (豆腐回帰テスト)
         emoji_font = find_emoji_font()
         if emoji_font:

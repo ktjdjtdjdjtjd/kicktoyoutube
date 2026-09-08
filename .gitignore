@@ -2,8 +2,12 @@ __pycache__/
 out/
 segs/
 strips/
-fonts/
+fonts/*
+!fonts/keifont.ttf
+!fonts/keifont_NOTICE.txt
 *.mp4
 *.ass
 vod.*
 concat.txt
+!fonts/GenEiPOPle-Bk.ttf
+!fonts/GenEiPOPle_NOTICE.txt
