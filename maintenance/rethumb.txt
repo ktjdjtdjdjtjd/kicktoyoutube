@@ -1,2 +1,7 @@
-# 旧コードで投稿された2本目ニートの夏休み(2026-08-07 #3)
-f84f100d-5bfe-4cac-8cdc-82901b6a53c2
+# zingisukan2525 新レイアウト試し反映 2026-09-08 (生存3本 + source失効3本)
+fc707d36-a9d5-444a-84e2-978e64b3097b
+e906acfd-8383-433b-b187-fcb53c3fdb73
+92a88bc8-0f8d-4352-be1c-795563253dac
+56cf97dd-22da-4bb2-987c-b401f75f4b52
+bd588eb2-d5aa-4125-b3cb-fb6ba7ede8e9
+d73b4978-c18a-42ca-8d67-da6973fab5cd
