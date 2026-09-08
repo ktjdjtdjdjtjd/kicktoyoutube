@@ -4,7 +4,7 @@
 </style>
 <header><h1>クリップ選定</h1><nav aria-label="絞り込み"></nav><div id="message" role="status">読込中</div></header><main></main>
 <script>
-const labels=[['all','すべて'],['','未判定'],['ok','採用'],['hold','保留'],['no','却下']];let items=[],filter='all';const busy=new Set();let loading=false;
+const labels=[['all','候補'],['','未判定'],['ok','採用'],['hold','保留'],['no','却下']];let items=[],filter='all';const busy=new Set();let loading=false;
 const time=n=>[Math.floor(n/3600),Math.floor(n%3600/60).toString().padStart(2,'0'),Math.floor(n%60).toString().padStart(2,'0')].join(':');
 const esc=s=>String(s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 const message=s=>document.querySelector('#message').textContent=s;
@@ -13,14 +13,14 @@ const row=(which,label,t)=>`<div class="range"><span>${label}</span><button data
 return `<div class="choices">${labels.slice(2).map(([v,t])=>`<button data-status="${v}" aria-pressed="${d.status===v}">${t}</button>`).join('')}</div>${row('ds','開始',s)}${row('de','終了',e)}<footer><span class="length">${e-s}秒</span><button data-replay>この区間を再生</button></footer>`;}
 function render(){
 document.querySelector('nav').innerHTML=labels.map(([v,t])=>`<button data-filter="${v}" aria-pressed="${v===filter}">${t}</button>`).join('');
-const main=document.querySelector('main'),visible=items.filter(c=>filter==='all'||c.decision.status===filter),wanted=new Set(visible.map(c=>c.id));
-main.querySelectorAll('article').forEach(el=>{if(!wanted.has(el.dataset.id))el.remove();});
+const main=document.querySelector('main'),visible=items.filter(c=>filter==='all'?c.decision.status!=='no':c.decision.status===filter),wanted=new Set(visible.map(c=>c.id));
+main.querySelectorAll('article').forEach(el=>{if(!wanted.has(el.dataset.id)){el.querySelector('video')?.pause();el.remove();}});
 for(let i=0;i<visible.length;i++){const c=visible[i];let el=main.querySelector(`[data-id="${c.id}"]`);
 if(!el){el=document.createElement('article');el.dataset.id=c.id;el.innerHTML=`<h2>${esc(c.title)}</h2><video controls playsinline preload="none" src="/media/${c.id}"></video><section></section>`;main.insertBefore(el,main.children[i]||null);}
 if(!busy.has(c.id))el.querySelector('section').innerHTML=controls(c);
 el.querySelectorAll('button').forEach(b=>b.disabled=busy.has(c.id));}
 }
-async function load(){if(loading||busy.size)return;loading=true;try{let cursor=null,next=[];do{const r=await fetch('/api/candidates'+(cursor?'?cursor='+encodeURIComponent(cursor):''));if(!r.ok)throw Error('候補を読めません。再読み込みしてください');const data=await r.json();next.push(...data.items);cursor=data.cursor;}while(cursor);if(!busy.size){items=next.sort((a,b)=>b.created_at.localeCompare(a.created_at)||a.id.localeCompare(b.id));render();message(`${items.length}本・同期済み`);}}catch(e){message(e.message);}finally{loading=false;}}
+async function load(){if(loading||busy.size)return;loading=true;try{let cursor=null,next=[];do{const r=await fetch('/api/candidates'+(cursor?'?cursor='+encodeURIComponent(cursor):''));if(!r.ok)throw Error('候補を読めません。再読み込みしてください');const data=await r.json();next.push(...data.items);cursor=data.cursor;}while(cursor);if(!busy.size){items=next.sort((a,b)=>b.created_at.localeCompare(a.created_at)||a.id.localeCompare(b.id));render();message(`${items.filter(c=>c.decision.status!=='no').length}本・同期済み`);}}catch(e){message(e.message);}finally{loading=false;}}
 document.addEventListener('click',async e=>{const b=e.target.closest('button');if(!b)return;if(b.hasAttribute('data-filter')){filter=b.dataset.filter;render();return;}const el=b.closest('article');if(!el)return;const c=items.find(c=>c.id===el.dataset.id),v=el.querySelector('video');
 if(b.hasAttribute('data-replay')){v.currentTime=c.start+c.decision.ds-c.preview_start;v.play().catch(()=>message('再生ボタンを押してください'));return;}
 if(busy.has(c.id))return;const d={...c.decision};if(b.hasAttribute('data-status'))d.status=d.status===b.dataset.status?'':b.dataset.status;else d[b.dataset.side]+=Number(b.dataset.delta);
