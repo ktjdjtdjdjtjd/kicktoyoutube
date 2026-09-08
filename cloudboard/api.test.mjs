@@ -22,6 +22,16 @@ const mp4=Buffer.concat([Buffer.from([0,0,0,24]),Buffer.from('ftypisom0000000000
 const env=()=>({BOARD:new Bucket(),AUTH_PASS:'test-only-browser',INGEST_TOKEN:'test-only-ingest'});
 function req(path,method='GET',body,ingest=false){return new Request(origin+path,{method,headers:{Authorization:ingest?'Bearer test-only-ingest':'Basic '+btoa('kick:test-only-browser'),Origin:origin,'Content-Type':'application/json'},body:body?JSON.stringify(body):undefined});}
 const add=e=>handle(req('/ingest/'+id,'PUT',{candidate:c,mp4},true),e);
+test('47 candidates paginate without exceeding open-stream or per-request limits',async()=>{
+ const e=env();let open=0,peak=0,reads=0;
+ const original=e.BOARD.get.bind(e.BOARD);
+ e.BOARD.get=async(...args)=>{reads++;const o=await original(...args);if(!o)return null;open++;peak=Math.max(peak,open);assert.ok(open<=3);const consume=o.json;return {...o,json:async()=>{try{return await consume();}finally{open--;}}};};
+ e.BOARD.list=async({limit,cursor})=>{assert.equal(limit,20);const keys=[...e.BOARD.data.keys()].filter(k=>k.startsWith('candidates/'));const start=Number(cursor||0);return {objects:keys.slice(start,start+limit).map(key=>({key})),truncated:start+limit<keys.length,cursor:String(start+limit)};};
+ for(let i=0;i<47;i++){const key=i.toString(16).padStart(64,'0');await e.BOARD.put('candidates/'+key,JSON.stringify({...c,id:key}));}
+ let cursor=null,total=0;
+ do{reads=0;const d=await (await handle(req('/api/candidates'+(cursor?'?cursor='+cursor:'')),e)).json();total+=d.items.length;cursor=d.cursor;assert.ok(reads<=40);assert.equal(open,0);}while(cursor);
+ assert.equal(total,47);assert.ok(peak<=3);
+});
 test('persistent login form, secure cookie, invalid credentials and forged cookie',async()=>{
  const e=env();await add(e);
  const page=await handle(new Request(origin+'/'),e);assert.equal(page.status,200);assert.equal(page.headers.get('WWW-Authenticate'),null);assert.match(await page.text(),/type="password"/);

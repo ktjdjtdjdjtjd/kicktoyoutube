@@ -18,8 +18,14 @@
 
 ## 本番接続の残件
 
-現在は未デプロイ。2026-09-08時点でwranglerは未認証。
-以下は操作手順であり、実行済みという意味ではない。
+2026-09-09: 本番配置済み。URL: https://zingisukan-selection.kirinuki-dashboard.workers.dev
+認証はページ内フォームとHttpOnly Cookie。旧Basic認証ヘッダーはAPI検証用に利用可能。
+旧47候補の動画は前後30秒を付けて移行済み。旧Artifactの判定は未移行。
+process.yml の独立boardジョブが取得済みchatpackを再利用して最大8件追加する。
+board_replay.ymlで既存process実行のchatpackから安全に再実行できる。
+同じ候補IDはスキップし、却下を含む保存済み判定を維持する。
+一覧は20件ずつページングし、R2本文を消費してから次を読み込む。同時読込は3件まで。
+以下は再セットアップ時の手順。既存の秘密は上書き生成しない。
 
 1. Cloudflareの対象アカウントへwrangler login。R2の利用条件/課金が新しく必要なら利用者確認。
 2. 対象アカウントを確認して非公開R2 bucket `zingisukan-selection` を作成。
