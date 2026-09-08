@@ -1,0 +1,7 @@
+keifont.ttf — けいふぉんと (Kei Font)
+Source : https://font.sumomo.ne.jp/font_1.html
+License: Apache License 2.0 (https://www.apache.org/licenses/LICENSE-2.0)
+Notes  : Kana glyphs (c) Do-Font. Other glyphs derived from Source Han Sans,
+         M+ OUTLINE FONTS, Gen Shin Gothic (all open-source fonts).
+         Redistributed unmodified in this repository for the thumbnail generator
+         (scripts/thumbnail.py). Commercial use permitted per the author's terms.
