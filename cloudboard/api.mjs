@@ -1,3 +1,4 @@
+import {loginPage,makeSession,hasSession} from './login.mjs';
 const ID=/^[a-f0-9]{64}$/;
 const json=(value,status=200)=>Response.json(value,{status,headers:{'Cache-Control':'no-store','X-Content-Type-Options':'nosniff'}});
 const equal=(a,b)=>{let d=a.length^b.length;for(let i=0;i<Math.max(a.length,b.length);i++)d|=(a.charCodeAt(i)||0)^(b.charCodeAt(i)||0);return d===0;};
@@ -17,8 +18,22 @@ export function validCandidate(c){
 export async function handle(request,env,html=''){
   const url=new URL(request.url),path=url.pathname,ingest=path.startsWith('/ingest/');
   if(!env.BOARD||!(ingest?env.INGEST_TOKEN:env.AUTH_PASS))return json({error:'未設定'},503);
+  if(path==='/login'&&request.method==='POST'){
+    if(request.headers.get('origin')!==url.origin)return json({error:'origin'},403);
+    try{
+      if(!request.headers.get('content-type')?.startsWith('application/x-www-form-urlencoded'))return json({error:'form'},400);
+      const reader=request.body.getReader();let size=0;const parts=[];
+      while(true){const {value,done}=await reader.read();if(done)break;size+=value.length;if(size>4096){await reader.cancel();return json({error:'size'},413);}parts.push(value);}
+      const bytes=new Uint8Array(size);let offset=0;for(const part of parts){bytes.set(part,offset);offset+=part.length;}
+      const form=new URLSearchParams(new TextDecoder().decode(bytes));
+      if(!equal(form.get('username')||'','kick')||!equal(form.get('password')||'',env.AUTH_PASS))return loginPage(true);
+      const session=await makeSession(env.AUTH_PASS);
+      return new Response(null,{status:303,headers:{Location:'/', 'Cache-Control':'no-store','Set-Cookie':'clip_session='+session+'; Path=/; Secure; HttpOnly; SameSite=Strict; Max-Age=604800'}});
+    }catch{return json({error:'login'},400);}
+  }
   const want=ingest?'Bearer '+env.INGEST_TOKEN:'Basic '+btoa('kick:'+env.AUTH_PASS);
-  if(!equal(request.headers.get('Authorization')||'',want))return new Response('ログインが必要です',{status:401,headers:ingest?{}:{'WWW-Authenticate':'Basic realm="clip-selection", charset="UTF-8"'}});
+  const authenticated=equal(request.headers.get('Authorization')||'',want)||(!ingest&&await hasSession(request,env.AUTH_PASS));
+  if(!authenticated)return !ingest&&path==='/'&&request.method==='GET'?loginPage():json({error:'ログインが必要です'},401);
   if(!ingest&&!['GET','HEAD'].includes(request.method)&&request.headers.get('origin')!==url.origin)return json({error:'origin'},403);
   try{
     const match=path.match(/^\/(ingest|media|decision)\/([a-f0-9]{64})$/);
