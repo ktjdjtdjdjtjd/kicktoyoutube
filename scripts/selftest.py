@@ -623,6 +623,45 @@ def test_resolve_meta_dispatch():
     check("meta: platformで振り分ける", called == ["twitch", "kick", "kick"], str(called))
 
 
+def test_output_fps():
+    """コメントのカクつき対策: output_fps 指定で overlay の前に fps が挿さる。
+    (overlay は出力フレームごとに x を計算するので、ソース30fpsのままだと
+     320px/s = 10.67px/フレームの飛び飛びになりスクロールがカクつく)"""
+    import burn
+    mf = {"strips": [{"lane": 0, "y": 100, "speed": 320.0, "files": ["a.png"]}],
+          "left_margin": 4096, "screen_w": 1920, "speed": 320.0, "gif_phase_fps": 5}
+    empty = {"strips": [], "left_margin": 4096, "screen_w": 1920, "speed": 320.0}
+    cmds = []
+    orig = burn.run
+    burn.run = lambda c, **kw: cmds.append(c)
+    try:
+        burn._encode_chunk("v.mp4", 0.0, 10.0, mf, "s", 1920, "veryfast", "23",
+                           "o.mp4", out_fps=60)
+        burn._encode_chunk("v.mp4", 0.0, 10.0, mf, "s", 1920, "veryfast", "23",
+                           "o.mp4")
+        burn._encode_chunk("v.mp4", 0.0, 10.0, empty, "s", 1920, "veryfast", "23",
+                           "o.mp4", out_fps=60)
+    finally:
+        burn.run = orig
+    fc = [c[c.index("-filter_complex") + 1] if "-filter_complex" in c else ""
+          for c in cmds]
+    check("fps: out_fps指定でfpsがoverlayの前に入る",
+          fc[0].startswith("[0:v]fps=60[base];[base][1:v]overlay="), f"({fc[0][:48]})")
+    check("fps: 速度式は据え置き(ストリップの焼き位置とズレない)",
+          "overlay=x=1920-4096-t*320.0:" in fc[0])
+    check("fps: 未指定なら従来どおりfpsを足さない",
+          "fps=" not in fc[1] and fc[1].startswith("[0:v][1:v]overlay="), f"({fc[1][:48]})")
+    check("fps: コメ0件のチャンクにもfpsを掛ける(concat -c copy のため)",
+          fc[2] == "[0:v]fps=60[base]" and "[base]" in cmds[2], f"({fc[2]})")
+    check("fps: 全チャンクでyuv420pを明示している",
+          all("yuv420p" in c for c in cmds))
+    cfg = json.loads((Path(__file__).parent.parent / "config.json")
+                     .read_text(encoding="utf-8"))
+    check("fps: configにoutput_fpsがある",
+          int(cfg.get("danmaku", {}).get("output_fps", 0)) >= 60,
+          f"({cfg.get('danmaku', {}).get('output_fps')})")
+
+
 def main():
     test_plan_segments()
     test_tokenize()
@@ -637,6 +676,7 @@ def main():
     test_mark_done_import()
     test_burn_request()
     test_pick_height()
+    test_output_fps()
     test_shorts_render()
     test_shorts_pick()
     test_shorts_dispatch()

@@ -9,7 +9,7 @@
      (metaのsource m3u8を直渡し。kick抽出器は新v7 uuidで404するため。
      ランナーの残ディスクが足りない場合は config.fallback_height へ自動降格する)
   2. strip_render でレーン別ストリップPNG (テキスト+エモート画像) を生成
-  3. ffmpeg -ss/-t 入力シーク + overlay×レーン数 で合成エンコード
+  3. ffmpeg -ss/-t 入力シーク + fps引き上げ + overlay×レーン数 で合成エンコード
      (libx264 / yuv420p / faststart / timescale 90000 — 結合前提の共通パラメータ)
 """
 import argparse
@@ -103,7 +103,7 @@ def log_mem(tag):
 
 
 def _encode_chunk(vod, chunk_start, chunk_dur, manifest, strips_dir, vw,
-                  preset, crf, out):
+                  preset, crf, out, out_fps=0):
     log_mem("before-encode")
     strips = manifest["strips"]
     lm = manifest["left_margin"]
@@ -124,16 +124,23 @@ def _encode_chunk(vod, chunk_start, chunk_dur, manifest, strips_dir, vw,
                 enable = f"eq(mod(floor(t*{pfps})\\,{k_total})\\,{k})"
             entries.append((idx, s["y"], s.get("speed", speed), enable))
             idx += 1
-    if entries:
-        chains = []
-        prev = "[0:v]"
-        for n, (i, y, spd, enable) in enumerate(entries):
-            lbl = f"[v{n+1}]"
-            opts = f"x={vw}-{lm}-t*{spd}:y={y}:eof_action=repeat"
-            if enable:
-                opts += f":enable='{enable}'"
-            chains.append(f"{prev}[{i}:v]overlay={opts}{lbl}")
-            prev = lbl
+    chains = []
+    prev = "[0:v]"
+    # コメの位置は overlay が「出力フレームごと」に t から計算する。ソース(Kickは最大30fps)の
+    # ままだと 320px/s = 10.67px/フレームの飛び飛びになり、横スクロールがカクつく。
+    # 先に fps を上げてから overlay を掛けると、同じ速度でも刻みが細かくなって滑らかに流れる
+    # (背景は重複フレームなので見た目は変わらない。コストは概ねフレーム数に比例)。
+    if out_fps:
+        chains.append(f"[0:v]fps={out_fps}[base]")
+        prev = "[base]"
+    for n, (i, y, spd, enable) in enumerate(entries):
+        lbl = f"[v{n+1}]"
+        opts = f"x={vw}-{lm}-t*{spd}:y={y}:eof_action=repeat"
+        if enable:
+            opts += f":enable='{enable}'"
+        chains.append(f"{prev}[{i}:v]overlay={opts}{lbl}")
+        prev = lbl
+    if chains:
         cmd += ["-filter_complex", ";".join(chains), "-map", prev]
     else:
         cmd += ["-map", "0:v"]
@@ -157,8 +164,12 @@ def burn_segment(vod, chat_jsonl, seg_start, seg_end, out, preset, crf,
     (レーン割当は全体一括なのでチャンク境界でも流れは連続する)。"""
     vw, vh = probe_dims(vod)
     scale = vh / 1080.0
-    chunk_seconds = float(((cfg or {}).get("danmaku") or {}).get("chunk_seconds", 1800))
-    print(f"video {vw}x{vh} scale={scale:.3f} chunk={chunk_seconds}s", file=sys.stderr)
+    dm = ((cfg or {}).get("danmaku") or {})
+    chunk_seconds = float(dm.get("chunk_seconds", 1800))
+    # 0/未指定ならソースのfpsのまま (=従来の挙動)
+    out_fps = int(dm.get("output_fps", 0) or 0)
+    print(f"video {vw}x{vh} scale={scale:.3f} chunk={chunk_seconds}s fps={out_fps or 'source'}",
+          file=sys.stderr)
 
     chunks = []
     t = seg_start
@@ -177,7 +188,8 @@ def burn_segment(vod, chat_jsonl, seg_start, seg_end, out, preset, crf,
             chat_jsonl, cs, ce, font_path, emote_dir, cdir,
             scale=scale, cfg=cfg, emoji_font_path=emoji_font_path)
         part = f"chunk_{ci:03d}.mp4"
-        _encode_chunk(vod, cs, ce - cs, manifest, cdir, vw, preset, crf, part)
+        _encode_chunk(vod, cs, ce - cs, manifest, cdir, vw, preset, crf, part,
+                      out_fps=out_fps)
         parts.append(part)
         import shutil as _sh
         _sh.rmtree(cdir, ignore_errors=True)
