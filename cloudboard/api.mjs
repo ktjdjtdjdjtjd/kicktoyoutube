@@ -39,11 +39,17 @@ export async function handle(request,env,html=''){
     const match=path.match(/^\/(ingest|media|decision)\/([a-f0-9]{64})$/);
     if(path==='/'&&request.method==='GET')return new Response(html,{headers:{'Content-Type':'text/html; charset=utf-8','Cache-Control':'no-store','Content-Security-Policy':"default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; media-src 'self'; frame-ancestors 'none'; base-uri 'none'",'X-Content-Type-Options':'nosniff'}});
     if(path==='/api/candidates'&&request.method==='GET'){
-      const list=await env.BOARD.list({prefix:'candidates/',limit:100,cursor:url.searchParams.get('cursor')||undefined});
-      const items=await Promise.all(list.objects.map(async o=>{
-        const c=await env.BOARD.get(o.key),d=await env.BOARD.get('decisions/'+o.key.split('/')[1]);
-        return {...await c.json(),decision:d?await d.json():{status:'',ds:0,de:0},revision:d?.etag||null};
-      }));
+      const list=await env.BOARD.list({prefix:'candidates/',limit:20,cursor:url.searchParams.get('cursor')||undefined});
+      const items=[];
+      for(let i=0;i<list.objects.length;i+=3){
+        const batch=await Promise.all(list.objects.slice(i,i+3).map(async o=>{
+          const c=await env.BOARD.get(o.key);if(!c)return null;
+          const candidate=await c.json();
+          const d=await env.BOARD.get('decisions/'+o.key.split('/')[1]);
+          return {...candidate,decision:d?await d.json():{status:'',ds:0,de:0},revision:d?.etag||null};
+        }));
+        items.push(...batch.filter(Boolean));
+      }
       return json({items,cursor:list.truncated?list.cursor:null});
     }
     if(!match)return json({error:'not found'},404);
