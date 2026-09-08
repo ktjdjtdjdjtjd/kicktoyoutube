@@ -310,8 +310,10 @@ def test_chapters_logic():
           f"({ch3})")
     b = chapters.bucketize([(0, "あ"), (10, "い"), (65, "う"), (66, "え" * 200)],
                            bucket=60, max_chars=50)
-    check("ch: bucketize merge+cap", b[0] == (0, "あ い") and b[1][0] == 60
-          and len(b[1][1]) == 50, f"({b})")
+    check("ch: bucketize merge+cap", b[0] == (0, "あ い") and len(b[1][1]) == 50, f"({b})")
+    # 行の時刻は「切り捨てた境界」ではなく最初の発話の実時刻。
+    # 境界を返すと Gemini は「行の時刻から選べ」に従い分単位の章しか出せない (実バグ)。
+    check("ch: bucketize keeps real time", b[1][0] == 65, f"({b})")
     # 並列文字起こし: 区間分割が1波(<=12)に収まり、各区間が動画末尾まで連続すること
     import plan as _plan
     segs = _plan.plan_segments(31858, 2700)  # 8.85h VOD

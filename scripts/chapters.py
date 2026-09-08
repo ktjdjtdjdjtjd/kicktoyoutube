@@ -182,21 +182,26 @@ MODEL_FALLBACKS = ["gemini-flash-latest", "gemini-flash-lite-latest",
                    "gemini-pro-latest", "gemini-2.5-flash"]
 
 
-def bucketize(lines, bucket=60, max_chars=120):
+def bucketize(lines, bucket=30, max_chars=120):
     """文字起こしを bucket 秒単位に統合し、各行 max_chars に切り詰める。
-    無料枠のトークン上限対策 (章検出にはこの粒度で十分)。"""
+    無料枠のトークン上限対策。
+    まとめる単位は bucket 秒だが、行に付ける時刻は切り捨てた境界ではなく
+    その塊の最初の発話の実時刻にする。境界を返すと Gemini は
+    「行の時刻から選べ」に従った結果すべて丸めた時刻しか出せなくなるため。"""
     out = []
+    cur_b = None
     cur_start = None
     cur_text = []
     for t, txt in lines:
         b = int(t // bucket) * bucket
-        if cur_start is None or b != cur_start:
-            if cur_start is not None and cur_text:
+        if cur_b is None or b != cur_b:
+            if cur_b is not None and cur_text:
                 out.append((cur_start, " ".join(cur_text)[:max_chars]))
-            cur_start = b
+            cur_b = b
+            cur_start = t
             cur_text = []
         cur_text.append(txt)
-    if cur_start is not None and cur_text:
+    if cur_b is not None and cur_text:
         out.append((cur_start, " ".join(cur_text)[:max_chars]))
     return out
 
