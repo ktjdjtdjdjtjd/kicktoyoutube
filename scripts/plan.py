@@ -100,7 +100,18 @@ def resolve_meta_twitch(uuid):
     }
 
 
-def resolve_meta_any(slug, uuid, cfg=None, config_path="config.json"):`r`n    """slug の platform 設定を見て kick / twitch のメタ解決へ振り分ける。`r`n    呼び出し側が cfg を持っていないときは config.json を自前で読む。"""`r`n    if cfg is None:`r`n        cfg = kick_api.load_config(config_path)`r`n    return resolve_meta_twitch(uuid) if ((cfg.get("channel_settings", {}).get(slug) or {}).get("platform", "kick") == "twitch") else resolve_meta(slug, uuid)`r`n`r`n`r`n`ndef resolve_platform(cfg, slug):`r`n    """slug ごとの platform を解決する。"""`r`n    return (cfg.get("channel_settings", {}).get(slug) or {}).get("platform", "kick")
+def resolve_meta_any(slug, uuid, cfg=None, config_path="config.json"):
+    """slug の platform 設定を見て kick / twitch のメタ解決へ振り分ける。
+    呼び出し側が cfg を持っていないときは config.json を自前で読む。"""
+    if cfg is None:
+        cfg = kick_api.load_config(config_path)
+    return resolve_meta_twitch(uuid) if ((cfg.get("channel_settings", {}).get(slug) or {}).get("platform", "kick") == "twitch") else resolve_meta(slug, uuid)
+
+
+
+def resolve_platform(cfg, slug):
+    """slug ごとの platform を解決する。"""
+    return (cfg.get("channel_settings", {}).get(slug) or {}).get("platform", "kick")
 
 
 def gh_output(key, value):
@@ -123,7 +134,12 @@ def main():
     ap.add_argument("--limit-windows", type=int, default=0,
                     help="スモークテスト用: チャット取得をN窓(5秒/窓)に制限")
     a = ap.parse_args()
-    cfg = kick_api.load_config(a.config)`r`n    platform = resolve_platform(cfg, a.slug)`r`n    outdir = Path(a.out)`r`n    outdir.mkdir(parents=True, exist_ok=True)`r`n`r`n    meta = resolve_meta_any(a.slug, a.uuid, cfg)
+    cfg = kick_api.load_config(a.config)
+    platform = resolve_platform(cfg, a.slug)
+    outdir = Path(a.out)
+    outdir.mkdir(parents=True, exist_ok=True)
+
+    meta = resolve_meta_any(a.slug, a.uuid, cfg)
     if meta["is_live"]:
         raise RuntimeError("VOD is still live — abort")
     if meta["duration_s"] <= 0:
@@ -222,5 +238,9 @@ def main():
 
 if __name__ == "__main__":
     main()
+
+
+
+
 
 
