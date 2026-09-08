@@ -81,6 +81,7 @@ def main():
     ap = argparse.ArgumentParser()
     ap.add_argument('--request', default='queue_shorts/request.json')
     ap.add_argument('--out', default='out_board')
+    ap.add_argument('--source-meta', help='Existing chatpack meta.json; avoids resolving the VOD again')
     a = ap.parse_args()
     req = json.loads(Path(a.request).read_text(encoding='utf-8'))
     # This board is specifically for Jingisukan, not every monitored channel.
@@ -93,6 +94,12 @@ def main():
     import kick_api
     kick_api.load_config('config.json')
     source = None
+    vod_title = ''
+    if a.source_meta:
+        meta = json.loads(Path(a.source_meta).read_text(encoding='utf-8'))
+        if meta.get('url') != req['video'] or not str(meta.get('source', '')).startswith('https://'):
+            raise ValueError('source metadata does not match request')
+        source, vod_title = meta['source'], str(meta.get('title', '候補'))
     out = Path(a.out)
     out.mkdir(parents=True, exist_ok=True)
     failed = []
