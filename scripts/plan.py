@@ -105,7 +105,8 @@ def resolve_meta_any(slug, uuid, cfg=None, config_path="config.json"):
     呼び出し側が cfg を持っていないときは config.json を自前で読む。"""
     if cfg is None:
         cfg = kick_api.load_config(config_path)
-    platform = resolve_platform(cfg, slug)`r`n    return resolve_meta_twitch(uuid) if platform == "twitch" else resolve_meta(slug, uuid)
+    platform = resolve_platform(cfg, slug)
+    return resolve_meta_twitch(uuid) if platform == "twitch" else resolve_meta(slug, uuid)
 
 
 
