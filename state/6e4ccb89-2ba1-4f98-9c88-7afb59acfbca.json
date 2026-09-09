@@ -4,7 +4,9 @@
   "title": "ヒドンナを引き止めに行くぞ",
   "start_time": "2026-09-09 06:57:11",
   "duration_s": 25300.0,
-  "status": "dispatched",
+  "status": "done",
   "retries": 1,
-  "dispatched_at": "2026-09-09T18:36:32.309534+00:00"
+  "dispatched_at": "2026-09-09T18:36:32.309534+00:00",
+  "updated_at": "2026-09-09T23:43:10.882008+00:00",
+  "yt_url": "https://www.youtube.com/watch?v=pYsIPbDWUac"
 }
