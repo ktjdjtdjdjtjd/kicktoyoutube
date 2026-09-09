@@ -1,0 +1,136 @@
+<!doctype html><html lang="ja"><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>クリップ選定</title>
+<style>
+*{box-sizing:border-box}body{margin:0;background:#efebe4;color:#241e18;font:15px system-ui,sans-serif}main,header{max-width:600px;margin:auto;padding:14px}header{position:sticky;top:0;background:#efebe4;z-index:2}h1{font-size:21px;margin:0 0 10px}nav{display:flex;gap:5px;overflow:auto}button{font:inherit;min-height:44px;border:1px solid #d7d0c3;border-radius:8px;background:#fbf9f5;color:inherit;padding:7px 10px;cursor:pointer}button[aria-pressed=true]{background:#b8380c;color:white}button:disabled{opacity:.4;cursor:default}button:focus-visible{outline:2px solid #b8380c;outline-offset:2px}article{background:#fbf9f5;border-radius:12px;padding:12px;margin-bottom:20px}h2{font-size:15px;line-height:1.4;margin:0 0 10px}video{width:100%;aspect-ratio:16/9;background:#222;border-radius:8px}.choices{display:grid;grid-template-columns:repeat(3,1fr);gap:6px;margin:10px 0}.range{display:grid;grid-template-columns:2.5em 1fr 6em 1fr;align-items:center;gap:6px;margin:6px 0}.time{text-align:center;font-size:12px;font-variant-numeric:tabular-nums}#message{font-size:12px;min-height:16px;margin-top:7px}.length{font-size:12px;color:#6c6056}nav button{white-space:nowrap;font-size:13px}footer{display:flex;justify-content:space-between;align-items:center;margin-top:6px}
+
+[hidden]{display:none!important}.edited-video{display:block;aspect-ratio:9/16;width:min(100%,260px);max-height:48svh;object-fit:contain;margin:10px auto}.version-select{font:inherit;font-size:12px;max-width:100%;min-height:44px}.feedback-label{display:block;margin-top:12px}.feedback-text{display:block;width:100%;min-height:100px;font:inherit;padding:10px;margin:6px 0;resize:vertical}.feedback-note,.edit-meta{font-size:12px;white-space:pre-wrap;overflow-wrap:anywhere}.feedback-history{padding-left:20px;font-size:13px;white-space:pre-wrap;overflow-wrap:anywhere}.feedback-history li{margin:12px 0}.feedback-send{min-height:44px;width:100%}
+</style>
+<header><h1>クリップ選定</h1><nav aria-label="絞り込み"></nav><div id="message" role="status">読込中</div></header><main id="candidates"></main><main id="edited" hidden><p id="edits-message" role="status">読込中</p><div id="edit-cards"></div></main>
+<script>
+const labels=[['all','候補'],['','未判定'],['ok','採用'],['hold','保留'],['no','却下']];let items=[],filter='all';const busy=new Set();let loading=false;
+const time=n=>[Math.floor(n/3600),Math.floor(n%3600/60).toString().padStart(2,'0'),Math.floor(n%60).toString().padStart(2,'0')].join(':');
+const dateFormat=new Intl.DateTimeFormat('ja-JP',{year:'numeric',month:'numeric',day:'numeric',hour:'2-digit',minute:'2-digit'});
+const dateText=value=>{const date=new Date(value);return Number.isNaN(date.getTime())?'日時不明':dateFormat.format(date);};
+const esc=s=>String(s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+const message=s=>document.querySelector('#message').textContent=s;
+function controls(c){const d=c.decision,s=c.start+d.ds,e=c.end+d.de;
+const row=(which,label,t)=>`<div class="range"><span>${label}</span><button data-side="${which}" data-delta="-10" aria-label="${label}を10秒前へ">−10秒</button><span class="time">${time(t)}</span><button data-side="${which}" data-delta="10" aria-label="${label}を10秒後へ">＋10秒</button></div>`;
+return `<div class="choices">${labels.slice(2).map(([v,t])=>`<button data-status="${v}" aria-pressed="${d.status===v}">${t}</button>`).join('')}</div>${row('ds','開始',s)}${row('de','終了',e)}<footer><span class="length">${e-s}秒</span><button data-replay>この区間を再生</button></footer>`;}
+function render(){
+document.querySelector('#candidates').hidden=filter==='edited';
+document.querySelector('#edited').hidden=filter!=='edited';
+document.querySelector('nav').innerHTML=[...labels,['edited','編集済み']].map(([v,t])=>`<button data-filter="${v}" aria-pressed="${v===filter}">${t}</button>`).join('');
+if(filter==='edited')return;
+const main=document.querySelector('#candidates'),visible=items.filter(c=>filter==='all'?c.decision.status!=='no':c.decision.status===filter),wanted=new Set(visible.map(c=>c.id));
+main.querySelectorAll('article').forEach(el=>{if(!wanted.has(el.dataset.id)){el.querySelector('video')?.pause();el.remove();}});
+for(let i=0;i<visible.length;i++){const c=visible[i];let el=main.querySelector(`[data-id="${c.id}"]`);
+if(!el){el=document.createElement('article');el.dataset.id=c.id;el.innerHTML=`<h2>${esc(c.title)}</h2><video controls playsinline preload="none" src="/media/${c.id}"></video><section></section>`;main.insertBefore(el,main.children[i]||null);}
+if(!busy.has(c.id))el.querySelector('section').innerHTML=controls(c);
+el.querySelectorAll('button').forEach(b=>b.disabled=busy.has(c.id));}
+}
+async function load(){if(loading||busy.size)return;loading=true;try{let cursor=null,next=[];do{const r=await fetch('/api/candidates'+(cursor?'?cursor='+encodeURIComponent(cursor):''));if(!r.ok)throw Error('候補を読めません。再読み込みしてください');const data=await r.json();next.push(...data.items);cursor=data.cursor;}while(cursor);if(!busy.size){items=next.sort((a,b)=>b.created_at.localeCompare(a.created_at)||a.id.localeCompare(b.id));render();message(`${items.filter(c=>c.decision.status!=='no').length}本・同期済み`);}}catch(e){message(e.message);}finally{loading=false;}}
+document.addEventListener('click',async e=>{const b=e.target.closest('button');if(!b)return;if(b.hasAttribute('data-filter')){filter=b.dataset.filter;document.querySelectorAll('video').forEach(v=>v.pause());render();if(filter==='edited')loadEdits();return;}const el=b.closest('article');if(!el||el.closest('#edited'))return;const c=items.find(c=>c.id===el.dataset.id),v=el.querySelector('video');
+if(b.hasAttribute('data-replay')){v.currentTime=c.start+c.decision.ds-c.preview_start;v.play().catch(()=>message('再生ボタンを押してください'));return;}
+if(busy.has(c.id))return;const d={...c.decision};if(b.hasAttribute('data-status'))d.status=d.status===b.dataset.status?'':b.dataset.status;else d[b.dataset.side]+=Number(b.dataset.delta);
+if(c.start+d.ds<c.preview_start||c.end+d.de>c.preview_end||c.end+d.de-c.start-d.ds<5||Math.abs(d.ds)>300||Math.abs(d.de)>300){message('再生できる範囲の端です');return;}
+busy.add(c.id);render();message('保存中');try{const r=await fetch('/decision/'+c.id,{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify({...d,revision:c.revision})});const data=await r.json();if(!r.ok)throw Error(data.error||'保存できませんでした');c.decision=data.decision;c.revision=data.revision;message('保存済み');}catch(e){message(e.message);}finally{busy.delete(c.id);render();}});
+document.addEventListener('play',e=>{if(e.target.tagName==='VIDEO')document.querySelectorAll('video').forEach(v=>{if(v!==e.target)v.pause();});},true);
+document.addEventListener('timeupdate',e=>{const v=e.target;if(v.tagName!=='VIDEO'||v.closest('#edited'))return;const c=items.find(c=>c.id===v.closest('article').dataset.id);if(c&&v.currentTime>=c.end+c.decision.de-c.preview_start)v.pause();},true);
+
+// Keep version panels alive: polling never replaces a playing video or a draft.
+const editCards=new Map(),feedbackItems=new Map();let editsLoading=false;
+const hex64=s=>typeof s==='string'&&/^[a-f0-9]{64}$/.test(s);
+const feedbackLabels={queued:'受付',processing:'編集中',completed:'修正版あり',blocked:'要確認'};
+const draftKey=(cid,version)=>`cloudboard:feedback:${cid}:${version}`;
+function saveDraft(panel){
+ try{localStorage.setItem(draftKey(panel.cid,panel.version),JSON.stringify({text:panel.input.value,pending:panel.pending}));return true;}
+ catch{panel.note.textContent='この端末に下書きを保存できません。再読み込み前に本文を控えてください。';return false;}
+}
+function newFeedbackId(){return Array.from(crypto.getRandomValues(new Uint8Array(16)),b=>b.toString(16).padStart(2,'0')).join('');}
+async function pages(url){
+ const result=[],seen=new Set();let cursor=null;
+ do{const response=await fetch(url+(cursor?'?cursor='+encodeURIComponent(cursor):''),{credentials:'same-origin',cache:'no-store'});
+ if(!response.ok)throw Error(response.status===401||response.status===403?'ログインを確認して再読み込みしてください。':`読み込み失敗（${response.status}）。次回更新で再試行します。`);
+ const data=await response.json();if(!Array.isArray(data.items))throw Error('一覧の形式を確認できません。');
+ result.push(...data.items);cursor=data.cursor;if(cursor){if(seen.has(cursor))throw Error('一覧の続きを取得できません。');seen.add(cursor);}
+ }while(cursor);return result;
+}
+function versionPanel(card,item){
+ let panel=card.panels.get(item.version);if(panel)return panel;
+ const root=document.createElement('section');root.hidden=true;
+ root.innerHTML='<p class="edit-meta"></p><video class="edited-video" controls playsinline preload="none"></video><label class="feedback-label">この版への修正・感想<textarea class="feedback-text" maxlength="4000" placeholder="修正してほしい箇所など（4000文字以内）"></textarea></label><button type="button" class="feedback-send">送信</button><p class="feedback-note" role="status" aria-live="polite"></p><h3>この版のフィードバック</h3><ul class="feedback-history"></ul>';
+ const input=root.querySelector('textarea'),button=root.querySelector('button'),note=root.querySelector('.feedback-note'),video=root.querySelector('video');
+ video.src=`/edited-media/${item.id}/${item.version}`;
+ panel={root,input,button,note,video,cid:item.id,version:item.version,pending:null,sending:false,historySignature:''};
+ try{const saved=JSON.parse(localStorage.getItem(draftKey(item.id,item.version))||'null');
+ if(saved&&typeof saved.text==='string')input.value=saved.text.slice(0,4000);
+ if(saved?.pending&&/^[a-f0-9]{32}$/.test(saved.pending.id)&&typeof saved.pending.text==='string'&&saved.pending.text.length<=4000){panel.pending=saved.pending;input.value=saved.pending.text;input.readOnly=true;button.textContent='同じ内容で再送';note.textContent='未確認の送信があります。同じIDで再送できます。';}
+ }catch{note.textContent='保存済みの下書きを読み込めませんでした。';}
+ input.addEventListener('input',()=>saveDraft(panel));
+ button.addEventListener('click',()=>sendFeedback(panel));
+ card.panels.set(item.version,panel);card.root.append(root);return panel;
+}
+async function sendFeedback(panel){
+ if(panel.sending)return;
+ if(!panel.pending){const text=panel.input.value;if(!text.trim()||text.length>4000){panel.note.textContent='本文を1〜4000文字で入力してください。';return;}panel.pending={id:newFeedbackId(),text};}
+ panel.sending=true;panel.input.readOnly=true;panel.button.disabled=true;saveDraft(panel);panel.note.textContent='送信中…';
+ try{const pending=panel.pending;
+ const response=await fetch(`/feedback/${panel.cid}/${panel.version}/${pending.id}`,{method:'POST',credentials:'same-origin',headers:{'Content-Type':'application/json'},body:JSON.stringify({text:pending.text})});
+ if(response.redirected||!response.ok)throw Error(response.status===401||response.status===403?'ログインを確認してください。':`送信失敗（${response.status}）。`);
+ panel.pending=null;panel.input.value='';panel.input.readOnly=false;panel.button.textContent='送信';
+ panel.note.textContent='送信済み。フィードバックを受け付けました。';saveDraft(panel);loadEdits();
+ }catch{panel.note.textContent='送信を確認できませんでした。ログイン・通信を確認し、同じ内容で再送してください。本文と送信IDは保持しています。';panel.button.textContent='同じ内容で再送';saveDraft(panel);}
+ finally{panel.sending=false;panel.button.disabled=false;}
+}
+function selectVersion(card,version){
+ for(const [key,panel] of card.panels){panel.root.hidden=key!==version;if(key!==version)panel.video.pause();}
+ card.selected=version;card.select.value=version;
+}
+function renderEdits(edits){
+ const groups=new Map();
+ for(const item of edits){if(!hex64(item.id)||!hex64(item.version)||!['draft','ready'].includes(item.status))continue;
+ if(!groups.has(item.id))groups.set(item.id,[]);groups.get(item.id).push(item);}
+ for(const [cid,versions] of groups){
+ versions.sort((a,b)=>String(b.created_at).localeCompare(String(a.created_at))||b.version.localeCompare(a.version));
+ let card=editCards.get(cid);
+ if(!card){const root=document.createElement('article'),title=document.createElement('h2'),select=document.createElement('select');select.className='version-select';select.setAttribute('aria-label','動画の版');root.append(title,select);document.querySelector('#edit-cards').append(root);card={root,title,select,panels:new Map(),selected:null,latest:null};editCards.set(cid,card);select.addEventListener('change',()=>selectVersion(card,select.value));}
+ const latest=versions[0];card.title.textContent=latest.title||'編集動画';
+ const reflected=new Set(Array.from(feedbackItems.values()).filter(f=>f.candidate_id===cid&&f.status==='completed').map(f=>f.result_version));
+ const revision=versions.find(v=>reflected.has(v.version));
+ if(!card.revisionButton){card.revisionButton=document.createElement('button');card.revisionButton.type='button';card.revisionButton.textContent='FB反映版を見る';card.root.insertBefore(card.revisionButton,card.select);}
+ card.revisionButton.hidden=!revision;
+ card.revisionButton.onclick=()=>{if(revision)selectVersion(card,revision.version);};
+
+ for(const item of versions){const panel=versionPanel(card,item);panel.root.querySelector('.edit-meta').textContent=`${reflected.has(item.version)?'FB反映版 · ':''}${item.status==='draft'?'確認用':'編集済み'} · ${Number.isFinite(item.duration)?item.duration+'秒':'尺未確認'} · ${dateText(item.created_at)}`;}
+ const signature=JSON.stringify(versions.map(v=>[v.version,v.status,v.created_at,reflected.has(v.version)]));
+ if(card.signature!==signature){card.select.replaceChildren();versions.forEach((item,i)=>{const option=document.createElement('option');option.value=item.version;option.textContent=`${reflected.has(item.version)?'FB反映版 · ':''}${i===0?'最新':'以前'} · ${item.status==='draft'?'確認用':'編集済み'} · ${dateText(item.created_at)}`;card.select.append(option);});card.signature=signature;}
+ // A new version is selectable immediately, but never interrupts active work.
+ const current=card.panels.get(card.selected);
+ if(!current||(card.latest!==latest.version&&current.video.paused&&!current.input.value&&!current.sending&&!current.root.contains(document.activeElement)))selectVersion(card,latest.version);
+ else card.select.value=card.selected;
+ card.latest=latest.version;
+ }
+ document.querySelector('#edits-message').textContent=groups.size?`${groups.size}本 · 最新版から表示（版ごとにフィードバック）`:'編集動画はまだありません。';
+ renderFeedback();
+}
+function renderFeedback(){
+ for(const card of editCards.values())for(const panel of card.panels.values()){
+ const history=Array.from(feedbackItems.values()).filter(f=>f.candidate_id===panel.cid&&f.version===panel.version).sort((a,b)=>String(b.created_at).localeCompare(String(a.created_at))||a.id.localeCompare(b.id));
+ const signature=JSON.stringify([history,Array.from(card.panels.keys())]);if(signature===panel.historySignature)continue;panel.historySignature=signature;
+ const list=panel.root.querySelector('.feedback-history');list.replaceChildren();
+ if(!history.length){const li=document.createElement('li');li.textContent='まだありません。';list.append(li);}
+ for(const feedback of history){const li=document.createElement('li');li.textContent=`${feedbackLabels[feedback.status]||'状態確認中'} · ${dateText(feedback.created_at)}\n${feedback.text}${feedback.message?'\n'+feedback.message:''}`;
+ if(feedback.status==='completed'&&hex64(feedback.result_version)&&card.panels.has(feedback.result_version)){const button=document.createElement('button');button.type='button';button.textContent='修正版を見る';button.addEventListener('click',()=>selectVersion(card,feedback.result_version));li.append(document.createElement('br'),button);}
+ list.append(li);}
+ }
+}
+async function loadEdits(){
+ if(editsLoading)return;editsLoading=true;
+ try{const [edits,feedback]=await Promise.allSettled([pages('/api/edits'),pages('/api/feedback')]);
+ if(feedback.status==='fulfilled')for(const item of feedback.value){if(!/^[a-f0-9]{32}$/.test(item.id)||!hex64(item.candidate_id)||!hex64(item.version))continue;feedbackItems.set(item.id,item);}
+ if(edits.status==='fulfilled')renderEdits(edits.value);else{renderFeedback();document.querySelector('#edits-message').textContent=edits.reason.message;}
+ if(feedback.status==='rejected')document.querySelector('#edits-message').textContent+=' フィードバック: '+feedback.reason.message;
+ }finally{editsLoading=false;}
+}
+render();loadEdits();setInterval(()=>{if(!document.hidden)loadEdits();},15000);
+load();setInterval(()=>{if(!document.hidden)load();},60000);
+</script></html>

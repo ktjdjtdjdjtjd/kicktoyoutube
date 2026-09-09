@@ -1,0 +1,5 @@
+.wrangler/
+build/
+selftest-result.txt
+.dev.vars*
+.env*

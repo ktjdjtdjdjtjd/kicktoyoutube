@@ -1,0 +1,17 @@
+name = "zingisukan-selection"
+main = "worker.mjs"
+compatibility_date = "2026-08-01"
+workers_dev = true
+preview_urls = false
+
+[[r2_buckets]]
+binding = "BOARD"
+bucket_name = "zingisukan-selection"
+
+[[rules]]
+type = "Text"
+globs = ["**/*.html"]
+fallthrough = true
+
+# Required Worker secrets: AUTH_PASS (browser), INGEST_TOKEN (Actions only).
+# No public R2 domain. Worker authentication applies to HTML, JSON and MP4.
