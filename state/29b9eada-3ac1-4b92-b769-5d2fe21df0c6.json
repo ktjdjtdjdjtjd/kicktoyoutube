@@ -4,7 +4,25 @@
   "title": "初めての福岡県！病み上がり中なう。。",
   "start_time": "2026-09-09 09:08:00",
   "duration_s": 44348.0,
-  "status": "dispatched",
+  "status": "done",
   "retries": 1,
-  "dispatched_at": "2026-09-10T06:20:59.460609+00:00"
+  "dispatched_at": "2026-09-10T06:20:59.460609+00:00",
+  "updated_at": "2026-09-10T14:53:55.485945+00:00",
+  "yt_url": "https://www.youtube.com/watch?v=u3pVGeSeXzk",
+  "parts": [
+    {
+      "id": "u3pVGeSeXzk",
+      "url": "https://www.youtube.com/watch?v=u3pVGeSeXzk",
+      "title": "【ジンギスカン】初めての福岡県！病み上がり中なう。。【Kick配信 2026/09/09】（1/2）",
+      "start_s": 0.0,
+      "duration_s": 22176.506
+    },
+    {
+      "id": "F6Z36NMxMtY",
+      "url": "https://www.youtube.com/watch?v=F6Z36NMxMtY",
+      "title": "【ジンギスカン】初めての福岡県！病み上がり中なう。。【Kick配信 2026/09/09】（2/2）",
+      "start_s": 22176.506,
+      "duration_s": 22171.273
+    }
+  ]
 }
