@@ -4,7 +4,9 @@
   "title": "緊急で外に出てきた",
   "start_time": "2026-09-12 15:58:50",
   "duration_s": 14795.0,
-  "status": "dispatched",
+  "status": "done",
   "retries": 0,
-  "dispatched_at": "2026-09-12T21:12:59.477329+00:00"
+  "dispatched_at": "2026-09-12T21:12:59.477329+00:00",
+  "updated_at": "2026-09-13T00:31:36.894257+00:00",
+  "yt_url": "https://www.youtube.com/watch?v=0Mp7VuaQO5Q"
 }
