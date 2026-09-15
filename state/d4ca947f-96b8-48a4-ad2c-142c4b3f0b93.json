@@ -4,7 +4,9 @@
   "title": "税金…",
   "start_time": "2026-09-14 10:15:54",
   "duration_s": 39088.0,
-  "status": "dispatched",
+  "status": "done",
   "retries": 0,
-  "dispatched_at": "2026-09-14T23:31:21.456939+00:00"
+  "dispatched_at": "2026-09-14T23:31:21.456939+00:00",
+  "updated_at": "2026-09-15T07:04:03.310091+00:00",
+  "yt_url": "https://www.youtube.com/watch?v=7xAh86s7U9s"
 }
