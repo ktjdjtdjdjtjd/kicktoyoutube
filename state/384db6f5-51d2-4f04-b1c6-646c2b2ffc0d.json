@@ -4,7 +4,9 @@
   "title": "ついにテマキ作の配信部屋が完成した",
   "start_time": "2026-09-17 02:21:55",
   "duration_s": 19000.0,
-  "status": "dispatched",
+  "status": "done",
   "retries": 0,
-  "dispatched_at": "2026-09-17T10:28:00.487006+00:00"
+  "dispatched_at": "2026-09-17T10:28:00.487006+00:00",
+  "updated_at": "2026-09-17T14:02:38.574156+00:00",
+  "yt_url": "https://www.youtube.com/watch?v=yGyvvfWOCQo"
 }
