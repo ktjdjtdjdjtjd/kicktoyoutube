@@ -4,7 +4,9 @@
   "title": "【緊急事態】緊急キッカーズ会議！？",
   "start_time": "2026-09-19 15:53:10",
   "duration_s": 20554.0,
-  "status": "dispatched",
+  "status": "done",
   "retries": 0,
-  "dispatched_at": "2026-09-19T23:19:54.157095+00:00"
+  "dispatched_at": "2026-09-19T23:19:54.157095+00:00",
+  "updated_at": "2026-09-20T03:00:20.060417+00:00",
+  "yt_url": "https://www.youtube.com/watch?v=ZKsF7RQJqpM"
 }
