@@ -4,7 +4,9 @@
   "title": "第一回　待機動画選手権！　賞金５万円！！！",
   "start_time": "2026-09-20 12:45:36",
   "duration_s": 31982.0,
-  "status": "dispatched",
+  "status": "done",
   "retries": 2,
-  "dispatched_at": "2026-09-21T13:08:47.200516+00:00"
+  "dispatched_at": "2026-09-21T13:08:47.200516+00:00",
+  "updated_at": "2026-09-21T18:59:59.174612+00:00",
+  "yt_url": "https://www.youtube.com/watch?v=1XRPr5Xi4qA"
 }
