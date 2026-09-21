@@ -8,5 +8,6 @@
   "retries": 2,
   "dispatched_at": "2026-09-21T13:08:47.200516+00:00",
   "updated_at": "2026-09-21T18:59:59.174612+00:00",
-  "yt_url": "https://www.youtube.com/watch?v=1XRPr5Xi4qA"
+  "yt_url": "https://www.youtube.com/watch?v=1XRPr5Xi4qA",
+  "chapters_attempts": 1
 }
