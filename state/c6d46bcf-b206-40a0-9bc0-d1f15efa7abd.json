@@ -4,7 +4,9 @@
   "title": "台風の中 外配信",
   "start_time": "2026-09-21 08:11:23",
   "duration_s": 14644.0,
-  "status": "dispatched",
+  "status": "done",
   "retries": 0,
-  "dispatched_at": "2026-09-21T13:08:47.200516+00:00"
+  "dispatched_at": "2026-09-21T13:08:47.200516+00:00",
+  "updated_at": "2026-09-21T16:36:42.210822+00:00",
+  "yt_url": "https://www.youtube.com/watch?v=JovvTHb_AwI"
 }
