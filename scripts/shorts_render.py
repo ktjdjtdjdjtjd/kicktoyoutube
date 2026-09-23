@@ -142,6 +142,7 @@ def render(clip, ass_name, out_name, cwd, crf=28):
         # 444pだと多くのプレイヤーで開けない。下書きでも420p固定を崩さない
         "-pix_fmt", "yuv420p", "-profile:v", "high",
         "-c:a", "aac", "-b:a", "128k",
+        "-r", "30",
         "-movflags", "+faststart",
         out_name,
     ]
@@ -179,7 +180,7 @@ def main():
         try:
             dur = probe_dur(clip)
             segs = parse_srt(srt) if srt.exists() else []
-            title = (c.get("titles") or [""])[0]
+            title = (c.get("titles") or ["ジンギスカン配信"])[0]
             n = build_ass(segs, title, dur, outdir / ass_name)
             render(clip, ass_name, short, outdir, a.crf)
             size = (outdir / short).stat().st_size

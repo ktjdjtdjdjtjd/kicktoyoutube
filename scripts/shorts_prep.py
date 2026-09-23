@@ -133,6 +133,7 @@ def main():
     outdir.mkdir(parents=True, exist_ok=True)
     height = int(req.get("height") or 720)
     api_key = os.environ.get("GEMINI_API_KEY", "")
+    tiktok_flow = os.environ.get("TIKTOK_AUTOPUBLISH", "").strip().lower() == "true"
 
     source, vod_title = resolve_source(req["platform"], req["video"])
     print(f"source resolved: {vod_title}", file=sys.stderr)
@@ -149,7 +150,9 @@ def main():
         try:
             cut_clip(source, float(seg["start"]), float(seg["end"]), str(clip), height)
             texts = transcribe_srt(model, str(clip), str(srt))
-            titles = gemini_titles(" ".join(texts), api_key)
+            # TikTok preview/test avoids usage-based Gemini charges and uses a fixed header.
+            titles = (["ジンギスカン配信"] if tiktok_flow else
+                      gemini_titles(" ".join(texts), api_key))
             manifest["clips"].append({
                 "id": cid, "start": seg["start"], "end": seg["end"],
                 "file": clip.name, "srt": srt.name,

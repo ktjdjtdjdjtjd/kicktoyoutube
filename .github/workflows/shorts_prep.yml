@@ -15,6 +15,16 @@ on:
         description: "作る本数"
         required: false
         default: "8"
+      tiktok_preview:
+        description: "投稿せず、@tateyamaclips用のモザイク済み動画を確認"
+        required: false
+        type: boolean
+        default: false
+      tiktok_test_post:
+        description: "@tateyamaclipsへテスト投稿を1本予約（公開範囲はTikTok側の設定に従う）"
+        required: false
+        type: boolean
+        default: false
   # 手で区間を決めた依頼はこれまで通り request.json を push する
   push:
     paths:
@@ -36,6 +46,11 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 180
     steps:
+      - name: Require one-time TikTok test-post switch
+        if: inputs.tiktok_test_post == true && inputs.tiktok_preview != true && vars.TIKTOK_TEST_POST_ENABLED != 'true'
+        run: |
+          echo "::error::Set TIKTOK_TEST_POST_ENABLED=true only after the preview and cost checks."
+          exit 1
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262  # v4
       - uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065  # v5
         with:
@@ -59,7 +74,7 @@ jobs:
         env:
           IN_VIDEO: ${{ inputs.video }}
           IN_PLATFORM: ${{ inputs.platform }}
-          IN_N: ${{ inputs.n }}
+          IN_N: ${{ (inputs.tiktok_preview == true || inputs.tiktok_test_post == true) && '1' || inputs.n }}
         run: |
           python scripts/shorts_request.py \
             --video "$IN_VIDEO" --platform "$IN_PLATFORM" --n "$IN_N"
@@ -71,19 +86,47 @@ jobs:
       - name: Append padded previews to private selection board
         id: board
         continue-on-error: true
-        if: vars.BOARD_ENABLED == 'true'
+        if: vars.BOARD_ENABLED == 'true' && inputs.tiktok_preview != true && inputs.tiktok_test_post != true
         env:
           BOARD_URL: ${{ vars.BOARD_URL }}
           BOARD_INGEST_TOKEN: ${{ secrets.BOARD_INGEST_TOKEN }}
         run: PYTHONPATH=scripts python scripts/board_publish.py
       - name: Prep clips
         env:
-          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+          GEMINI_API_KEY: ${{ inputs.tiktok_preview != true && inputs.tiktok_test_post != true && secrets.GEMINI_API_KEY || '' }}
+          TIKTOK_AUTOPUBLISH: ${{ inputs.tiktok_preview || inputs.tiktok_test_post }}
         run: PYTHONPATH=scripts python scripts/shorts_prep.py
       # 朝ボードで「見た目の完成形」を見て採否を決めるための下書き。本番はCapCutで作る
       - name: Render vertical drafts
         run: PYTHONPATH=scripts python scripts/shorts_render.py
-      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02  # v4
+      - name: Mosaic everyone except the presumed streamer
+        if: inputs.tiktok_preview == true || inputs.tiktok_test_post == true
+        run: |
+          pip install --quiet opencv-python-headless==4.10.0.84
+          mkdir -p models
+          curl -fL --retry 3 --retry-delay 2 \
+            -o models/object_detection_yolox_2022nov.onnx \
+            'https://huggingface.co/opencv/opencv_zoo/resolve/main/models/object_detection_yolox/object_detection_yolox_2022nov.onnx?download=true'
+          echo 'c5c2d13e59ae883e6af3b45daea64af4833a4951c92d116ec270d9ddbe998063  models/object_detection_yolox_2022nov.onnx' \
+            | sha256sum --check
+          PYTHONPATH=scripts python scripts/shorts_mosaic.py \
+            out_shorts/short_01.mp4 out_shorts/tiktok_final.mp4 \
+            --model models/object_detection_yolox_2022nov.onnx
+      - name: Verify mosaiced TikTok video
+        if: inputs.tiktok_preview == true || inputs.tiktok_test_post == true
+        run: python scripts/shorts_verify.py out_shorts/tiktok_final.mp4
+      - name: Save TikTok preview or test-post artifact
+        if: inputs.tiktok_preview == true || inputs.tiktok_test_post == true
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02  # v4
+        with:
+          name: shortpack
+          path: |
+            out_shorts/tiktok_final.mp4
+            out_shorts/manifest.json
+          retention-days: 1
+      - name: Save regular shortpack artifact
+        if: inputs.tiktok_preview != true && inputs.tiktok_test_post != true
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02  # v4
         with:
           name: shortpack
           path: |
@@ -91,7 +134,44 @@ jobs:
             !out_shorts/fonts/
           retention-days: 3
       - name: Report board upload failure after preserving the original shortpack
-        if: always() && steps.board.outcome == 'failure'
+        if: always() && steps.board.outcome == 'failure' && inputs.tiktok_preview != true && inputs.tiktok_test_post != true
         run: |
           echo 'Candidate board upload failed. Existing candidates are safe; rerun to retry.'
           exit 1
+
+  tiktok_test_post:
+    if: ${{ inputs.tiktok_test_post == true && inputs.tiktok_preview != true }}
+    needs: [prep]
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    environment: tiktok-test-post
+    permissions:
+      actions: read
+      contents: read
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262  # v4
+      - name: Verify test-post environment requires a reviewer
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+        run: python scripts/shorts_tiktok_environment.py
+      - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093  # v4
+        with:
+          name: shortpack
+          path: out_shorts
+      - name: Install R2 client
+        run: pip install --quiet boto3==1.43.100
+      - name: Schedule one TikTok test post
+        env:
+          POST_FILE: out_shorts/tiktok_final.mp4
+          VOD_VIDEO: ${{ inputs.video }}
+          TIKTOK_TEST_POST: 'true'
+          TIKTOK_TEST_POST_ENABLED: ${{ vars.TIKTOK_TEST_POST_ENABLED }}
+          TIKTOK_AUTOPUBLISH_ENABLED: ${{ vars.TIKTOK_AUTOPUBLISH_ENABLED }}
+          BUFFER_API_KEY: ${{ secrets.BUFFER_API_KEY }}
+          BUFFER_TIKTOK_CHANNEL_ID: ${{ secrets.BUFFER_TIKTOK_CHANNEL_ID }}
+          R2_ACCOUNT_ID: ${{ secrets.R2_ACCOUNT_ID }}
+          R2_ACCESS_KEY_ID: ${{ secrets.R2_ACCESS_KEY_ID }}
+          R2_SECRET_ACCESS_KEY: ${{ secrets.R2_SECRET_ACCESS_KEY }}
+          TIKTOK_OBJECT_KEY_SECRET: ${{ secrets.TIKTOK_OBJECT_KEY_SECRET }}
+          R2_PUBLIC_BASE_URL: ${{ vars.R2_PUBLIC_BASE_URL }}
+        run: PYTHONPATH=scripts python scripts/shorts_tiktok_post.py
