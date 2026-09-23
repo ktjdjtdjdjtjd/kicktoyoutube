@@ -4,7 +4,9 @@
   "title": "やります",
   "start_time": "2026-09-22 18:18:25",
   "duration_s": 17851.0,
-  "status": "dispatched",
+  "status": "done",
   "retries": 0,
-  "dispatched_at": "2026-09-23T00:37:39.175661+00:00"
+  "dispatched_at": "2026-09-23T00:37:39.175661+00:00",
+  "updated_at": "2026-09-23T04:07:15.962501+00:00",
+  "yt_url": "https://www.youtube.com/watch?v=lSwS-exmlJs"
 }
