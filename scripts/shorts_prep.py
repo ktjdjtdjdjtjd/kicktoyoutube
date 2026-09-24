@@ -205,7 +205,8 @@ def main():
                 "file": clip.name, "srt": srt.name,
                 "n_lines": len(texts), "titles": titles,
                 # 候補選定が付けた材料。朝に見比べて選ぶときの判断根拠になるので残す
-                **{k: seg[k] for k in ("score", "rel", "msgs", "tags", "comments")
+                **{k: seg[k] for k in (("score", "rel", "msgs", "tags") if tiktok_flow
+                                       else ("score", "rel", "msgs", "tags", "comments"))
                    if k in seg},
             })
             print(f"clip {cid}: {len(texts)} lines, titles={titles}", file=sys.stderr)

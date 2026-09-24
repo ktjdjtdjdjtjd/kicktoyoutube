@@ -53,5 +53,6 @@ jobs:
           UPSTREAM_CONCLUSION: ${{ github.event.workflow_run.conclusion }}
           UPSTREAM_EVENT: ${{ github.event.workflow_run.event }}
           TIKTOK_TEST_POST_ENABLED: ${{ vars.TIKTOK_TEST_POST_ENABLED }}
+          TIKTOK_TEST_SOURCE_VOD_UUID: ${{ vars.TIKTOK_TEST_SOURCE_VOD_UUID }}
           TIKTOK_AUTOPUBLISH_ENABLED: ${{ vars.TIKTOK_AUTOPUBLISH_ENABLED }}
         run: python scripts/shorts_after_upload_dispatch.py --meta out/meta.json --state-dir state

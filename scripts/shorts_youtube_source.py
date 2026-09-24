@@ -218,6 +218,30 @@ def load_zingisukan_title_template(config_path):
     return template
 
 
+def yt_dlp_failure_category(stderr):
+    """Return a safe, bounded category without echoing titles or URLs."""
+    detail = (stderr or "").lower()
+    if "sign in to confirm you're not a bot" in detail or "confirm you're not a bot" in detail:
+        return "YouTube bot confirmation required"
+    if "sign in to confirm your age" in detail or "age-restricted" in detail:
+        return "YouTube age confirmation required"
+    if "private video" in detail or "video is private" in detail:
+        return "YouTube video is private"
+    if "video unavailable" in detail or "video is unavailable" in detail:
+        return "YouTube video is unavailable"
+    if re.search(r"http(?: error)?\s*403\b", detail):
+        return "YouTube returned HTTP 403"
+    if re.search(r"http(?: error)?\s*429\b", detail):
+        return "YouTube rate-limited the metadata request (HTTP 429)"
+    if re.search(r"http(?: error)?\s*5\d\d\b", detail):
+        return "YouTube returned a server error"
+    if "timed out" in detail or "timeout" in detail:
+        return "metadata request timed out"
+    if "unsupported url" in detail:
+        return "yt-dlp rejected the video URL"
+    return "cause unavailable in yt-dlp output"
+
+
 def inspect_url(url, expected_channel_id, config_path="config.json", state_dir="state"):
     video_id, canonical_url = canonical_video_url(url)
     command = [
@@ -231,7 +255,8 @@ def inspect_url(url, expected_channel_id, config_path="config.json", state_dir="
         metadata = json.loads(result.stdout)
     except subprocess.CalledProcessError as exc:
         raise SourceValidationError(
-            f"yt-dlp metadata lookup failed (exit {exc.returncode})"
+            "yt-dlp metadata lookup failed "
+            f"(exit {exc.returncode}; {yt_dlp_failure_category(exc.stderr)})"
         ) from exc
     except json.JSONDecodeError as exc:
         raise SourceValidationError("yt-dlp returned invalid JSON metadata") from exc

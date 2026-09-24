@@ -115,6 +115,7 @@ jobs:
             python scripts/shorts_youtube_source.py \
               --url "$SOURCE_URL" \
               --expected-channel-id "$SOURCE_CHANNEL_ID" \
+              --state-dir state \
               --out-json queue_shorts/youtube_source.json
             if [ "$TIKTOK_MODE" = "true" ]; then
               python - <<'PY'

@@ -88,6 +88,7 @@ def preflight_dispatch(
     default_branch: str,
     test_enabled: str,
     autopublish_enabled: str,
+    test_source_uuid: str = "",
 ) -> dict[str, str]:
     """Return skip or validated dispatch mode without reading state."""
     if conclusion != "success":
@@ -111,6 +112,13 @@ def preflight_dispatch(
         return {"action": "skip", "reason": "TikTok modes disabled"}
 
     source_uuid = canonical_uuid(meta.get("uuid"))
+    if test_mode:
+        try:
+            expected_test_uuid = canonical_uuid(test_source_uuid)
+        except DispatchError:
+            return {"action": "skip", "reason": "test source VOD is not configured"}
+        if source_uuid != expected_test_uuid:
+            return {"action": "skip", "reason": "not the selected test source VOD"}
     source_url = meta.get("url")
     expected_source_url = f"https://kick.com/{TARGET_SLUG}/videos/{source_uuid}"
     if source_url != expected_source_url:
@@ -166,11 +174,14 @@ def _selftest() -> None:
             "default_branch": "main",
             "test_enabled": "true",
             "autopublish_enabled": "false",
+            "test_source_uuid": uuid,
         }
         args.update(overrides)
         return preflight_dispatch(meta, **args)
 
     assert preflight()["action"] == "dispatch"
+    assert preflight(test_source_uuid="")["action"] == "skip"
+    assert preflight(test_source_uuid="223e4567-e89b-12d3-a456-426614174000")["action"] == "skip"
     assert dispatch_fields(validate_state(meta, good_state), "test") == [
         ("video", "https://www.youtube.com/watch?v=abcdefghijk"),
         ("platform", "youtube"),
@@ -187,6 +198,7 @@ def _selftest() -> None:
         default_branch="main",
         test_enabled="true",
         autopublish_enabled="false",
+        test_source_uuid=uuid,
     ) == {"action": "skip", "reason": "non-target-source"}
     assert preflight(conclusion="failure")["action"] == "skip"
     assert preflight(upstream_event="schedule")["action"] == "skip"
@@ -284,6 +296,7 @@ def main() -> int:
             default_branch=os.environ.get("DEFAULT_BRANCH", ""),
             test_enabled=os.environ.get("TIKTOK_TEST_POST_ENABLED", ""),
             autopublish_enabled=os.environ.get("TIKTOK_AUTOPUBLISH_ENABLED", ""),
+            test_source_uuid=os.environ.get("TIKTOK_TEST_SOURCE_VOD_UUID", ""),
         )
         if plan["action"] == "skip":
             print(f"skip: {plan['reason']}")

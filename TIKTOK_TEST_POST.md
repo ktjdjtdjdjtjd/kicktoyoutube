@@ -7,6 +7,8 @@
 - 継続投稿の自動起動はGitHub Variables `TIKTOK_AUTOPUBLISH_ENABLED` が既定で未設定または `false` の間は停止する。繰り返し投稿はまず単発テスト完了後に検討し、投稿ごとの承認ゲートを維持する。
 - `tiktok_preview=true` はモザイク済みartifactを作るだけで、R2とBufferへ送らない。
 - `tiktok_test_post=true` は投稿予約まで進む単発経路。通常の監視キューは有効化しない。
+- テスト自動起動は `TIKTOK_TEST_SOURCE_VOD_UUID` に指定したKick VOD UUIDだけを対象にする。YouTube動画の説明欄、完了済み `state/<UUID>.json`、動画IDが一致しない場合は停止する。
+- YouTube動画はyt-dlpが `availability=public` と確認できるものだけ受け付ける。限定公開・非公開・公開状態不明の動画は停止する。
 - Bufferから取得したチャンネル名またはTikTokプロフィールURLが `tateyamaclips` と一致しない場合は停止する。[Buffer Channel API](https://developers.buffer.com/types/Channel.html)
 - テスト経路は当月1投稿まで。成功後は `TIKTOK_TEST_POST_ENABLED` を削除または `false` に戻す。
 
@@ -26,10 +28,11 @@ GitHubの **Settings → Environments** に `tiktok-test-post` environmentを作
 | Secret | `TIKTOK_OBJECT_KEY_SECRET` | 32文字以上のランダム値。作成後は変更しない |
 | Variable | `R2_PUBLIC_BASE_URL` | 専用R2バケットに接続した公開HTTPSドメイン |
 | Variable | `TIKTOK_TEST_POST_ENABLED` | テスト直前だけ `true`。テスト後は削除または `false` |
+| Variable | `TIKTOK_TEST_SOURCE_VOD_UUID` | テスト対象にする単一のKick VOD UUID。テスト後は削除 |
 | Variable | `TIKTOK_SOURCE_CHANNEL_ID` | Omoshiro Moviesの正確なYouTubeチャンネルID。チャンネル名から推測しない |
 | Variable | `TIKTOK_AUTOPUBLISH_ENABLED` | 現状は未設定または `false` を維持。繰り返し投稿の検証・承認後にだけ `true` |
 
-現在、必要なGitHub Variables/Secretsと両EnvironmentのRequired reviewersが未設定のため、preview・テスト投稿の実行はまだブロックされている。最初のゴールは `tiktok_test_post` による月1回のテスト予約で、通常投稿フラグは有効化しない。
+現在、必要なGitHub Variables/Secretsと両EnvironmentのRequired reviewersが未設定のため、preview・テスト投稿の実行はまだブロックされている。テスト時は `TIKTOK_TEST_POST_ENABLED=true` と選定済みVODの `TIKTOK_TEST_SOURCE_VOD_UUID` を設定し、最初のゴールは `tiktok_test_post` による月1回のテスト予約とする。通常投稿フラグは有効化しない。
 
 Cloudflare R2に専用バケット `zingisukan-tiktok-public` を作る。既存バケット `zingisukan-selection` は公開しない。専用バケットにはモザイク済み動画だけを入れ、オブジェクト一覧を公開せず、`tiktok/` prefixを7日後に削除するLifecycle ruleと、バケット限定の書き込みキーを設定する。
 
@@ -39,10 +42,10 @@ Cloudflare R2に専用バケット `zingisukan-tiktok-public` を作る。既存
 
 ## テスト手順
 
-1. `shorts_prep` を手動実行し、Omoshiro Moviesに公開済みのジンギスカンYouTube動画URLを指定して `platform=youtube`、`tiktok_preview=true`、`tiktok_test_post=false`、`tiktok_auto_post=false` にする。登録した `TIKTOK_SOURCE_CHANNEL_ID` と一致するチャンネルの動画だけ受け付ける。候補区間のチャットは関連付けられたKick VODから取得し、実際の動画クリップはコメント焼き込み済みYouTube公開動画から切り出す。候補は1本、45〜90秒。字幕・見出し・モザイクをartifactで確認する。
+1. `shorts_prep` を手動実行し、Omoshiro Moviesに公開済みのジンギスカンYouTube動画URLを指定して `platform=youtube`、`tiktok_preview=true`、`tiktok_test_post=false`、`tiktok_auto_post=false` にする。登録した `TIKTOK_SOURCE_CHANNEL_ID` と一致し、公開状態が確認された動画だけ受け付ける。説明欄のKick VOD URLと完了済みstateのYouTube動画IDを照合し、候補区間のチャットは同一Kick VODから取得する。実際の動画クリップはコメント焼き込み済みYouTube公開動画から切り出す。候補は1本、45〜90秒。字幕・見出し・モザイクをartifactで確認する。
 2. その映像でよければ、同じYouTube URLを指定して `platform=youtube`、`tiktok_preview=false`、`tiktok_test_post=true` にする。処理は1本だけ行い、Gemini APIは呼ばない。
 3. 生成された `shortpack` artifactを確認する。jobは `tiktok-test-post` environmentの必須レビュアー承認待ちになる。承認後、workflowがenvironmentにレビュアー保護が設定されていることもAPIで再確認し、Bufferへ30分後の公開予約を送る。承認しなければ投稿処理は開始しない。
-4. 投稿予約後、`TIKTOK_TEST_POST_ENABLED` を削除または `false` に戻す。これでテスト経路も停止する。
+4. 投稿予約後、`TIKTOK_TEST_POST_ENABLED` と `TIKTOK_TEST_SOURCE_VOD_UUID` を削除する。テスト経路を停止し、次の投稿を対象にしない。
 
 `tiktok_auto_post` は `TIKTOK_AUTOPUBLISH_ENABLED=true` と `tiktok-autopost` Required reviewersの両方を満たす場合のみ選択でき、承認された実行ごとに予約する。最初のテスト投稿前はこの変数を有効化しない。
 
