@@ -17,6 +17,7 @@ import subprocess
 import sys
 import urllib.request
 from pathlib import Path
+from urllib.parse import parse_qs, urlsplit
 
 import kick_api
 from burn_request import KICK_URL_RE, TWITCH_URL_RE
@@ -49,6 +50,45 @@ def clean_title(s):
     return s.strip().strip('"\'「」『』').strip()
 
 
+def youtube_video_id(video):
+    try:
+        parts = urlsplit(video)
+    except ValueError:
+        return ""
+    if parts.scheme.lower() not in {"http", "https"}:
+        return ""
+    host = (parts.hostname or "").lower()
+    if host in {"youtube.com", "www.youtube.com", "m.youtube.com"} and parts.path == "/watch":
+        values = parse_qs(parts.query).get("v", [])
+        video_id = values[0] if values else ""
+    elif host in {"youtu.be", "www.youtu.be"}:
+        video_id = parts.path.strip("/").split("/", 1)[0]
+    else:
+        return ""
+    return video_id if re.fullmatch(r"[A-Za-z0-9_-]{11}", video_id) else ""
+
+
+def load_youtube_source(video, metadata_path="queue_shorts/youtube_source.json"):
+    expected_id = youtube_video_id(video)
+    if not expected_id:
+        sys.exit("error: youtube source URL is invalid")
+    path = Path(metadata_path)
+    if not path.is_file():
+        sys.exit("error: validated YouTube source metadata is missing: " + str(path))
+    try:
+        metadata = json.loads(path.read_text(encoding="utf-8"))
+    except (OSError, ValueError):
+        sys.exit("error: validated YouTube source metadata is invalid")
+    if str(metadata.get("video_id") or "") != expected_id:
+        sys.exit("error: YouTube source metadata does not match request video id")
+    title = str(metadata.get("title") or "").strip()
+    if not title:
+        sys.exit("error: YouTube source metadata has no video title")
+    # Use the validated canonical URL so start-time and playlist query params
+    # from a pasted link cannot shift or broaden the section download.
+    return f"https://www.youtube.com/watch?v={expected_id}", title
+
+
 def resolve_source(platform, video):
     if platform == "kick":
         m = KICK_URL_RE.search(video)
@@ -57,6 +97,13 @@ def resolve_source(platform, video):
         from plan import resolve_meta
         meta = resolve_meta(m.group(1), m.group(2))
         return meta.get("source") or video, meta.get("title", "")
+    if platform == "youtube":
+        # Use the published Omoshiro Movies upload as the actual media source so
+        # its already-burned comments remain in every extracted clip.
+        source_url, title = load_youtube_source(video)
+        return source_url, title
+    if platform != "twitch":
+        sys.exit("error: unsupported shorts platform: " + str(platform))
     m = TWITCH_URL_RE.search(video)
     vid = m.group(1) if m else video
     return f"https://www.twitch.tv/videos/{vid}", ""

@@ -2,7 +2,9 @@
 
 ## この手順の範囲
 
-- 最初はGitHub ActionsからVOD URLを渡して、盛り上がり区間の上位1本を作る。
+- 最初はGitHub Actionsから、kicktoyoutubeがOmoshiro Moviesへ公開したコメント焼き込み済みYouTube動画のURLを渡して、盛り上がり区間の上位1本を作る。試験対象はジンギスカンの動画に限る。
+- TikTokの各投稿予約にはGitHub EnvironmentのRequired reviewers承認が必要。単発テストは `tiktok-test-post`、通常投稿は別の `tiktok-autopost` environmentで確認する。
+- 継続投稿の自動起動はGitHub Variables `TIKTOK_AUTOPUBLISH_ENABLED` が既定で未設定または `false` の間は停止する。繰り返し投稿はまず単発テスト完了後に検討し、投稿ごとの承認ゲートを維持する。
 - `tiktok_preview=true` はモザイク済みartifactを作るだけで、R2とBufferへ送らない。
 - `tiktok_test_post=true` は投稿予約まで進む単発経路。通常の監視キューは有効化しない。
 - Bufferから取得したチャンネル名またはTikTokプロフィールURLが `tateyamaclips` と一致しない場合は停止する。[Buffer Channel API](https://developers.buffer.com/types/Channel.html)
@@ -10,7 +12,7 @@
 
 ## 先に一度だけ設定
 
-GitHubの **Settings → Environments** に `tiktok-test-post` environmentを作成し、Required reviewersに投稿内容を確認する担当者を追加する。テスト投稿ジョブはこの承認を通るまで開始しない。リポジトリはPublicなので、標準GitHub-hosted runnerの利用料は無料で、GitHub Freeでもenvironmentの承認保護を使える（[GitHub Actions billing](https://docs.github.com/en/actions/concepts/billing-and-usage)、[GitHub Environments](https://docs.github.com/en/actions/how-tos/deploy/configure-and-manage-deployments/manage-environments)）。
+GitHubの **Settings → Environments** に `tiktok-test-post` environmentを作成し、Required reviewersに投稿内容を確認する担当者を追加する。通常投稿用の `tiktok-autopost` environmentにも別途Required reviewersを設定する。どちらもworkflowがGitHub APIでレビュアー保護を検証し、未設定・照会失敗時はR2/Buffer処理前に停止する。Environment承認とAPI検証があるため、各予約ごとに承認する。リポジトリはPublicなので、標準GitHub-hosted runnerの利用料は無料で、GitHub Freeでもenvironmentの承認保護を使える（[GitHub Actions billing](https://docs.github.com/en/actions/concepts/billing-and-usage)、[GitHub Environments](https://docs.github.com/en/actions/how-tos/deploy/configure-and-manage-deployments/manage-environments)）。
 
 **Settings → Secrets and variables → Actions** に次を設定する。APIキーや秘密値はチャットへ貼らない。
 
@@ -24,8 +26,10 @@ GitHubの **Settings → Environments** に `tiktok-test-post` environmentを作
 | Secret | `TIKTOK_OBJECT_KEY_SECRET` | 32文字以上のランダム値。作成後は変更しない |
 | Variable | `R2_PUBLIC_BASE_URL` | 専用R2バケットに接続した公開HTTPSドメイン |
 | Variable | `TIKTOK_TEST_POST_ENABLED` | テスト直前だけ `true`。テスト後は削除または `false` |
+| Variable | `TIKTOK_SOURCE_CHANNEL_ID` | Omoshiro Moviesの正確なYouTubeチャンネルID。チャンネル名から推測しない |
+| Variable | `TIKTOK_AUTOPUBLISH_ENABLED` | 現状は未設定または `false` を維持。繰り返し投稿の検証・承認後にだけ `true` |
 
-全自動キュー用の `TIKTOK_AUTOPUBLISH_ENABLED` は未設定または `false` のままにする。テスト経路はこの値が `true` だと安全のため停止する。
+現在、必要なGitHub Variables/Secretsと両EnvironmentのRequired reviewersが未設定のため、preview・テスト投稿の実行はまだブロックされている。最初のゴールは `tiktok_test_post` による月1回のテスト予約で、通常投稿フラグは有効化しない。
 
 Cloudflare R2に専用バケット `zingisukan-tiktok-public` を作る。既存バケット `zingisukan-selection` は公開しない。専用バケットにはモザイク済み動画だけを入れ、オブジェクト一覧を公開せず、`tiktok/` prefixを7日後に削除するLifecycle ruleと、バケット限定の書き込みキーを設定する。
 
@@ -35,12 +39,14 @@ Cloudflare R2に専用バケット `zingisukan-tiktok-public` を作る。既存
 
 ## テスト手順
 
-1. `shorts_prep` を手動実行し、Kick VOD URLを指定して `tiktok_preview=true`、`tiktok_test_post=false` にする。字幕・見出し・モザイクをartifactで確認する。
-2. その映像でよければ、同じVOD URLを指定して `tiktok_preview=false`、`tiktok_test_post=true` にする。処理は1本だけ行い、Gemini APIは呼ばない。
+1. `shorts_prep` を手動実行し、Omoshiro Moviesに公開済みのジンギスカンYouTube動画URLを指定して `platform=youtube`、`tiktok_preview=true`、`tiktok_test_post=false`、`tiktok_auto_post=false` にする。登録した `TIKTOK_SOURCE_CHANNEL_ID` と一致するチャンネルの動画だけ受け付ける。候補区間のチャットは関連付けられたKick VODから取得し、実際の動画クリップはコメント焼き込み済みYouTube公開動画から切り出す。候補は1本、45〜90秒。字幕・見出し・モザイクをartifactで確認する。
+2. その映像でよければ、同じYouTube URLを指定して `platform=youtube`、`tiktok_preview=false`、`tiktok_test_post=true` にする。処理は1本だけ行い、Gemini APIは呼ばない。
 3. 生成された `shortpack` artifactを確認する。jobは `tiktok-test-post` environmentの必須レビュアー承認待ちになる。承認後、workflowがenvironmentにレビュアー保護が設定されていることもAPIで再確認し、Bufferへ30分後の公開予約を送る。承認しなければ投稿処理は開始しない。
 4. 投稿予約後、`TIKTOK_TEST_POST_ENABLED` を削除または `false` に戻す。これでテスト経路も停止する。
 
-GitHub artifactはPublic repositoryのread accessを持つユーザーがダウンロードできる。artifactにはモザイク済み最終動画と見出しmanifestだけを1日保存し、未加工素材を含めない（[GitHub artifact download](https://docs.github.com/en/actions/how-tos/manage-workflow-runs/download-workflow-artifacts)）。
+`tiktok_auto_post` は `TIKTOK_AUTOPUBLISH_ENABLED=true` と `tiktok-autopost` Required reviewersの両方を満たす場合のみ選択でき、承認された実行ごとに予約する。最初のテスト投稿前はこの変数を有効化しない。
+
+GitHub artifactはPublic repositoryのread accessを持つユーザーがダウンロードできるため、一般公開扱いで確認する。artifactにはモザイク済み最終動画と見出しmanifestだけを1日保存し、未加工素材を含めない（[GitHub artifact download](https://docs.github.com/en/actions/how-tos/manage-workflow-runs/download-workflow-artifacts)）。
 
 Bufferの現行TikTok投稿メタデータAPIには公開範囲の指定項目がない（[TikTok metadata](https://developers.buffer.com/types/TikTokPostMetadataInput.html)）。このテストはTikTok側のアカウント設定に従うので、公開範囲を確認してからenvironment承認する。BufferのTikTok接続・予約投稿は新プランで利用できる。Freeプランでは同時に3チャンネル、各チャンネル10件まで予約でき、APIキーと月3,000リクエストも含まれる（[Buffer pricing](https://buffer.com/pricing)、[TikTok with Buffer](https://support.buffer.com/en-us/articles/using-tiktok-with-buffer-oGEroY9Of2)、[Buffer API plans](https://support.buffer.com/en-us/articles/what-is-buffers-api-GtIYIQilz5)）。既存アカウントがLegacy planの場合は、アップグレードせずに停止して費用を確認する。
 

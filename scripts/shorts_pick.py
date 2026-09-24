@@ -10,9 +10,11 @@ request.json に segments が無いときだけ動く（手で区間を指定し
 """
 import argparse
 import json
+import math
 import re
 import sys
 from pathlib import Path
+from urllib.parse import parse_qs, urlsplit
 
 import chat_fetch
 import kick_api
@@ -138,11 +140,23 @@ def tighten(rows, start, end, max_sec, min_sec, step=5):
     return round(start, 1), round(end, 1)
 
 
-def to_segments(rows, cands, n, max_sec, min_sec):
+def to_segments(rows, cands, n, max_sec, min_sec, duration=None):
     """候補 -> shorts_prep が食える segments。詰めた結果かぶったものは落とす。"""
     segs = []
     for c in cands:
         s, e = tighten(rows, c["start"], c["end"], max_sec, min_sec)
+        if duration is not None:
+            if s >= duration:
+                continue
+            s = max(0.0, min(s, duration))
+            e = max(s, min(e, duration))
+            if e - s < min_sec:
+                s = max(0.0, e - min_sec)
+                e = min(duration, max(e, s + min_sec))
+            if e - s < min_sec:
+                continue
+            if e <= s:
+                continue
         if any(min(e, o["end"]) - max(s, o["start"]) > 3 for o in segs):
             continue
         segs.append({
@@ -153,6 +167,48 @@ def to_segments(rows, cands, n, max_sec, min_sec):
         if len(segs) >= n:
             break
     return segs
+
+
+def youtube_video_id(video):
+    """ID for the two YouTube URL forms accepted by shorts_request."""
+    try:
+        parts = urlsplit(video)
+    except ValueError:
+        return ""
+    if parts.scheme.lower() not in {"http", "https"}:
+        return ""
+    host = (parts.hostname or "").lower()
+    if host in {"youtube.com", "www.youtube.com", "m.youtube.com"} and parts.path == "/watch":
+        values = parse_qs(parts.query).get("v", [])
+        video_id = values[0] if values else ""
+    elif host in {"youtu.be", "www.youtu.be"}:
+        video_id = parts.path.strip("/").split("/", 1)[0]
+    else:
+        return ""
+    return video_id if re.fullmatch(r"[A-Za-z0-9_-]{11}", video_id) else ""
+
+
+def youtube_source_metadata(video, metadata_path="queue_shorts/youtube_source.json"):
+    expected_id = youtube_video_id(video)
+    if not expected_id:
+        sys.exit("error: youtube source URL is invalid")
+    path = Path(metadata_path)
+    if not path.is_file():
+        sys.exit("error: validated YouTube source metadata is missing: " + str(path))
+    try:
+        metadata = json.loads(path.read_text(encoding="utf-8"))
+        actual_id = str(metadata.get("video_id") or "")
+        duration = float(metadata.get("duration"))
+    except (OSError, ValueError, TypeError, json.JSONDecodeError):
+        sys.exit("error: validated YouTube source metadata is invalid")
+    if actual_id != expected_id:
+        sys.exit("error: YouTube source metadata does not match request video id")
+    if not math.isfinite(duration) or duration <= 0:
+        sys.exit("error: YouTube source metadata has an invalid duration")
+    kick_video_url = str(metadata.get("kick_video_url") or "").strip()
+    if not KICK_URL_RE.search(kick_video_url):
+        sys.exit("error: YouTube source metadata has no valid associated Kick VOD")
+    return metadata, duration, kick_video_url
 
 
 def fetch_rows(platform, video, workers=8):
@@ -191,15 +247,29 @@ def main():
         print("segments 指定済み(" + str(len(req["segments"])) + "件) — 自動選定はしない")
         return
 
+    platform = req.get("platform")
+    video = req.get("video", "")
+    duration = None
+    if platform == "youtube":
+        _, duration, chat_video = youtube_source_metadata(video)
+        chat_platform = "kick"
+    elif platform in {"kick", "twitch"}:
+        chat_video = video
+        chat_platform = platform
+    else:
+        sys.exit("error: unsupported shorts platform: " + str(platform))
+
     kick_api.load_config(a.config)
-    rows = fetch_rows(req["platform"], req["video"])
+    rows = fetch_rows(chat_platform, chat_video)
+    if duration is not None:
+        rows = [(t, txt) for t, txt in rows if 0 <= t <= duration]
     print("chat rows: " + str(len(rows)), file=sys.stderr)
     if not rows:
         sys.exit("error: チャットが取れなかった (候補を選べない)")
 
     n = int(a.n or req.get("n") or 8)
     cands = find_candidates(rows, topn=max(n * 2, 20))
-    segs = to_segments(rows, cands, n, a.max_sec, a.min_sec)
+    segs = to_segments(rows, cands, n, a.max_sec, a.min_sec, duration=duration)
     if not segs:
         sys.exit("error: 候補が1件も出なかった")
     req["segments"] = segs
