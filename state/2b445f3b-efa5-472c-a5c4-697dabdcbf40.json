@@ -4,7 +4,9 @@
   "title": "はしもとくんが選ぶサイゼリヤトップ10",
   "start_time": "2026-09-28 05:28:51",
   "duration_s": 19873.0,
-  "status": "dispatched",
+  "status": "done",
   "retries": 0,
-  "dispatched_at": "2026-09-28T14:19:01.312930+00:00"
+  "dispatched_at": "2026-09-28T14:19:01.312930+00:00",
+  "updated_at": "2026-09-28T18:12:15.313884+00:00",
+  "yt_url": "https://www.youtube.com/watch?v=-oUJmcVqnMc"
 }
