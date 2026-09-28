@@ -4,7 +4,25 @@
   "title": "カツキの24時間配信",
   "start_time": "2026-09-27 02:06:03",
   "duration_s": 65415.0,
-  "status": "dispatched",
+  "status": "done",
   "retries": 0,
-  "dispatched_at": "2026-09-27T22:10:16.722671+00:00"
+  "dispatched_at": "2026-09-27T22:10:16.722671+00:00",
+  "updated_at": "2026-09-28T12:21:12.671706+00:00",
+  "yt_url": "https://www.youtube.com/watch?v=3q3ZS3DjBMg",
+  "parts": [
+    {
+      "id": "3q3ZS3DjBMg",
+      "url": "https://www.youtube.com/watch?v=3q3ZS3DjBMg",
+      "title": "【かつき】カツキの24時間配信【2026/09/27】（1/2）",
+      "start_s": 0.0,
+      "duration_s": 32708.843
+    },
+    {
+      "id": "fteDRbB7Rtc",
+      "url": "https://www.youtube.com/watch?v=fteDRbB7Rtc",
+      "title": "【かつき】カツキの24時間配信【2026/09/27】（2/2）",
+      "start_s": 32708.843,
+      "duration_s": 32707.459
+    }
+  ]
 }
