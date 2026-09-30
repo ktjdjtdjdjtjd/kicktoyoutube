@@ -16,6 +16,11 @@ on:
         description: "smoke test: limit chat windows (0 = full)"
         required: false
         default: "0"
+      trial_mode:
+        description: "Prepare BridgeClip hourly artifacts only (no YouTube post or state push)"
+        type: boolean
+        required: false
+        default: false
 
 permissions:
   contents: write
@@ -51,16 +56,17 @@ jobs:
         run: |
           PYTHONPATH=scripts python scripts/plan.py \
             "${{ inputs.slug }}" "${{ inputs.uuid }}" \
-            --out out --limit-windows "${{ inputs.limit_windows }}"
+            --out out --limit-windows "${{ inputs.limit_windows }}" \
+            --trial-mode "${{ inputs.trial_mode }}"
       - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02  # v4
         with:
           name: chatpack
           path: out/
-          retention-days: 3
+          retention-days: ${{ inputs.trial_mode && 1 || 3 }}
 
   board:
     needs: plan
-    if: needs.plan.outputs.skip != 'true' && inputs.slug == 'zingisukan2525' && vars.BOARD_ENABLED == 'true'
+    if: ${{ needs.plan.outputs.skip != 'true' && !inputs.trial_mode && inputs.slug == 'zingisukan2525' && vars.BOARD_ENABLED == 'true' }}
     runs-on: ubuntu-latest
     timeout-minutes: 30
     permissions:
@@ -137,22 +143,30 @@ jobs:
       - name: Prepare BridgeClip hourly comments
         id: bridgeclip_comments
         if: inputs.slug == 'zingisukan2525'
-        continue-on-error: true
+        continue-on-error: ${{ !inputs.trial_mode }}
         run: |
           seg_name=$(printf 'seg_%03d.mp4' "${{ matrix.seg.idx }}")
           seg_json=$(printf 'seg_%03d-comments.json' "${{ matrix.seg.idx }}")
           board_json=$(printf 'seg_%03d-candidates.json' "${{ matrix.seg.idx }}")
+          entry_json=$(printf 'seg_%03d-index.json' "${{ matrix.seg.idx }}")
           PYTHONPATH=scripts python scripts/hourly_pack.py \
             --meta out/meta.json --chat out/chat.jsonl \
             --index "${{ matrix.seg.idx }}" --video "$seg_name" --out "$seg_json" \
-            --board-out "$board_json"
+            --board-out "$board_json" --entry-out "$entry_json"
       - name: Report missing BridgeClip comments without blocking archive upload
-        if: inputs.slug == 'zingisukan2525' && steps.bridgeclip_comments.outcome == 'failure'
+        if: ${{ !inputs.trial_mode && inputs.slug == 'zingisukan2525' && steps.bridgeclip_comments.outcome == 'failure' }}
         run: |
           seg_base=$(printf 'seg_%03d' "${{ matrix.seg.idx }}")
           rm -f "${seg_base}-comments.json" "${seg_base}-candidates.json"
           printf '{"bridgeclipPrep":"failed","videoOnly":true,"reason":"comments-or-duration-check"}\n' > "${seg_base}-bridgeclip-status.json"
           echo '::warning::BridgeClip JSON pair was not prepared or video duration mismatched. This artifact contains video only; YouTube archive processing continues.'
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02  # v4
+        if: inputs.slug == 'zingisukan2525' && steps.bridgeclip_comments.outcome == 'success'
+        with:
+          name: bridgeclip-hour-${{ matrix.seg.idx }}
+          path: seg_*-index.json
+          if-no-files-found: error
+          retention-days: 1
       - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02  # v4
         with:
           name: seg-${{ matrix.seg.idx }}
@@ -163,8 +177,43 @@ jobs:
             seg_*-bridgeclip-status.json
           retention-days: ${{ inputs.slug == 'zingisukan2525' && 3 || 1 }}
 
+  ready_index:
+    needs: [plan, burn]
+    if: needs.plan.outputs.skip != 'true' && inputs.slug == 'zingisukan2525'
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    continue-on-error: ${{ !inputs.trial_mode }}
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262  # v4
+      - uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065  # v5
+        with:
+          python-version: "3.12"
+      - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093  # v4
+        with:
+          name: chatpack
+          path: out
+      - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093  # v4
+        with:
+          pattern: bridgeclip-hour-*
+          path: hours
+      - name: Rank hourly artifacts from verified small receipts only
+        run: |
+          PYTHONPATH=scripts python scripts/hourly_pack.py \
+            --meta out/meta.json --entry-dir hours \
+            --index-out bridgeclip-index.json --run-id "${{ github.run_id }}" \
+            --require-all "${{ inputs.trial_mode }}"
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02  # v4
+        with:
+          name: bridgeclip-index
+          path: bridgeclip-index.json
+          if-no-files-found: error
+          retention-days: 3
+
   assemble:
     needs: [plan, burn]
+    if: ${{ !inputs.trial_mode }}
     runs-on: ubuntu-latest
     timeout-minutes: 180
     steps:

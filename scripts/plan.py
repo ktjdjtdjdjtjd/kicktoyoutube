@@ -134,9 +134,13 @@ def main():
     ap.add_argument("--config", default="config.json")
     ap.add_argument("--limit-windows", type=int, default=0,
                     help="スモークテスト用: チャット取得をN窓(5秒/窓)に制限")
+    ap.add_argument("--trial-mode", choices=("true", "false"), default="false")
     a = ap.parse_args()
     cfg = kick_api.load_config(a.config)
     platform = resolve_platform(cfg, a.slug)
+    trial_mode = a.trial_mode == "true"
+    if trial_mode and (a.slug != "zingisukan2525" or platform != "kick" or a.limit_windows):
+        raise ValueError("trial mode requires full zingisukan2525 Kick archive and comments")
     outdir = Path(a.out)
     outdir.mkdir(parents=True, exist_ok=True)
 
@@ -146,6 +150,8 @@ def main():
     if meta["duration_s"] <= 0:
         raise RuntimeError("duration is 0 — VOD not finalized yet")
     if not meta.get("source"):
+        if trial_mode:
+            raise RuntimeError("trial archive has no downloadable source; state was not changed")
         # source無し = サブスク限定等でDL不能。台帳に記録して静かに終える
         # (失敗のまま放置すると2〜12時間おきに永遠に再投入されるため)
         from datetime import datetime, timezone
@@ -203,7 +209,7 @@ def main():
             src = emotes_mod.find_file("emotes", eid)
             if src:
                 shutil.copy2(src, seg_emotes / src.name)
-        if added:
+        if added and not trial_mode:
             try:
                 from repo_state import commit_paths
                 commit_paths(["emotes"], f"emotes: add {len(added)} ({a.slug}/{a.uuid[:8]})",

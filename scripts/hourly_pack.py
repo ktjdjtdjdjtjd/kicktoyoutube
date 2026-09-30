@@ -15,6 +15,7 @@ from pathlib import Path
 
 # Same marker syntax as chat_fetch.py; this offline packer must not load Kick API deps.
 EMOTE_RE = re.compile(r"\[emote:\d+:([^\]]+)\]")
+LAUGH_RE = re.compile(r"[wｗ]{2,}|笑{2,}", re.IGNORECASE)
 
 
 def build_pack(meta, chat_rows, index):
@@ -70,7 +71,7 @@ def candidate_board(pack):
         entry = bins[index]
         entry["count"] += 1
         text = message["text"]
-        if re.search(r"[wｗ]{2,}|笑{2,}", text, re.IGNORECASE):
+        if LAUGH_RE.search(text):
             entry["ww"] += 1
         sub = math.floor(second / 30)
         entry["peaks"][sub] = entry["peaks"].get(sub, 0) + 1
@@ -132,7 +133,27 @@ def _validate_pair(out_path, board_path, expected_pack, expected_board):
         raise ValueError("BridgeClip JSON pair does not match its schema/source")
 
 
-def write_pack(meta_path, chat_path, index, video_path, out_path, board_path):
+def segment_entry(pack, board, index):
+    """Use the finalized pack, including any dropped post-video tail comments."""
+    scores = sorted((item["score"] for item in board["cands"]), reverse=True)
+    score = round(sum(scores) / len(scores) + sum(scores[:3]) / min(3, len(scores)), 3)
+    name = f"seg_{index:03d}"
+    return {
+        "kickId": pack["kickId"],
+        "index": index,
+        "artifactName": f"seg-{index}",
+        "videoFile": name + ".mp4",
+        "commentsFile": name + "-comments.json",
+        "candidatesFile": name + "-candidates.json",
+        "sourceStartSeconds": pack["sourceStartSeconds"],
+        "durationSeconds": pack["durationSeconds"],
+        "score": score,
+        "commentCount": len(pack["messages"]),
+        "wwwCount": sum(bool(LAUGH_RE.search(item["text"])) for item in pack["messages"]),
+    }
+
+
+def write_pack(meta_path, chat_path, index, video_path, out_path, board_path, entry_path=None):
     meta = json.loads(Path(meta_path).read_text(encoding="utf-8"))
     with open(chat_path, encoding="utf-8") as stream:
         # 全配信のchatpackが大きくても、読み込みは1行ずつに留める。
@@ -150,29 +171,123 @@ def write_pack(meta_path, chat_path, index, video_path, out_path, board_path):
     board = candidate_board(pack)
     out = Path(out_path)
     board_out = Path(board_path)
-    if out.exists() or board_out.exists():
+    entry_out = Path(entry_path) if entry_path else None
+    if out.exists() or board_out.exists() or (entry_out and entry_out.exists()):
         raise FileExistsError("BridgeClip JSON output already exists; refusing to overwrite")
     try:
         _atomic_json(out, pack)
         _atomic_json(board_out, board)
         _validate_pair(out, board_out, pack, board)
+        if entry_out:
+            entry = segment_entry(pack, board, index)
+            _atomic_json(entry_out, entry)
+            if json.loads(entry_out.read_text(encoding="utf-8")) != entry:
+                raise ValueError("BridgeClip entry does not match finalized pair")
     except Exception:
         out.unlink(missing_ok=True)
         board_out.unlink(missing_ok=True)
+        if entry_out:
+            entry_out.unlink(missing_ok=True)
         raise
     return len(pack["messages"])
+
+
+def build_index(meta, entries, run_id, require_all=False):
+    """Small ranking manifest from the burned video pair's verified receipts."""
+    if meta.get("slug") != "zingisukan2525" or not meta.get("segments"):
+        raise ValueError("index requires a planned zingisukan2525 archive")
+    if not str(run_id).isdigit() or not meta.get("uuid") or not meta.get("title"):
+        raise ValueError("index requires run id, Kick id and title")
+    planned = {item["idx"]: item for item in meta["segments"]}
+    if len(planned) != len(meta["segments"]):
+        raise ValueError("duplicate planned segment index")
+    hours = []
+    seen = set()
+    for entry in entries:
+        index = entry.get("index")
+        if not isinstance(index, int) or index not in planned or index in seen:
+            raise ValueError("unexpected or duplicate segment receipt")
+        seen.add(index)
+        span = planned[index]
+        name = f"seg_{index:03d}"
+        duration = entry.get("durationSeconds")
+        if (entry.get("kickId") != meta["uuid"] or entry.get("artifactName") != f"seg-{index}"
+                or entry.get("videoFile") != name + ".mp4"
+                or entry.get("commentsFile") != name + "-comments.json"
+                or entry.get("candidatesFile") != name + "-candidates.json"
+                or entry.get("sourceStartSeconds") != span["start"]
+                or not isinstance(duration, (int, float)) or not math.isfinite(duration)
+                or duration <= 0
+                or abs(duration - (span["end"] - span["start"])) > 2
+                or not isinstance(entry.get("score"), (int, float))
+                or not math.isfinite(entry["score"])
+                or not isinstance(entry.get("commentCount"), int) or entry["commentCount"] < 0
+                or not isinstance(entry.get("wwwCount"), int)
+                or not 0 <= entry["wwwCount"] <= entry["commentCount"]):
+            raise ValueError("segment receipt does not match planned archive")
+        hours.append({key: value for key, value in entry.items() if key != "kickId"})
+    if not hours or (require_all and len(hours) != len(planned)):
+        raise ValueError("required BridgeClip segment receipts are missing")
+    # A tiny trailing remainder remains selectable but must not outrank a full hour.
+    hours.sort(key=lambda hour: (planned[hour["index"]]["end"] - planned[hour["index"]]["start"] >= 3600,
+                                 hour["score"],
+                                 -hour["sourceStartSeconds"]), reverse=True)
+    return {
+        "schemaVersion": 1,
+        "kickId": meta["uuid"],
+        "title": meta["title"],
+        "sourceUrl": f'https://kick.com/zingisukan2525/videos/{meta["uuid"]}',
+        "runId": int(run_id),
+        "segments": hours,
+    }
+
+
+def write_index(meta_path, entry_dir, run_id, out_path, require_all=False):
+    directory = Path(entry_dir)
+    entries = [json.loads(path.read_text(encoding="utf-8"))
+               for path in directory.glob("bridgeclip-hour-*/seg_*-index.json")]
+    index = build_index(json.loads(Path(meta_path).read_text(encoding="utf-8")),
+                        entries, run_id, require_all)
+    dest = Path(out_path)
+    if dest.exists():
+        raise FileExistsError("BridgeClip index already exists; refusing to overwrite")
+    try:
+        _atomic_json(dest, index)
+        if json.loads(dest.read_text(encoding="utf-8")) != index:
+            raise ValueError("BridgeClip index does not match source")
+    except Exception:
+        dest.unlink(missing_ok=True)
+        raise
+    return len(index["segments"])
 
 
 def main():
     parser = argparse.ArgumentParser()
     parser.add_argument("--meta", required=True)
-    parser.add_argument("--chat", required=True)
-    parser.add_argument("--index", required=True, type=int)
-    parser.add_argument("--video", required=True)
-    parser.add_argument("--out", required=True)
-    parser.add_argument("--board-out", required=True)
+    parser.add_argument("--chat")
+    parser.add_argument("--index", type=int)
+    parser.add_argument("--video")
+    parser.add_argument("--out")
+    parser.add_argument("--board-out")
+    parser.add_argument("--index-out")
+    parser.add_argument("--run-id")
+    parser.add_argument("--entry-out")
+    parser.add_argument("--entry-dir")
+    parser.add_argument("--require-all", choices=("true", "false"), default="false")
     args = parser.parse_args()
-    count = write_pack(args.meta, args.chat, args.index, args.video, args.out, args.board_out)
+    if args.index_out:
+        if (args.index is not None or args.video or args.out or args.board_out
+                or args.chat or args.entry_out or not args.run_id or not args.entry_dir):
+            parser.error("index mode requires --run-id/--entry-dir and excludes segment arguments")
+        count = write_index(args.meta, args.entry_dir, args.run_id, args.index_out,
+                            args.require_all == "true")
+        print(f"BridgeClip hourly index: {count} -> {args.index_out}")
+        return
+    if (args.index is None or not args.chat or not args.video or not args.out
+            or not args.board_out or args.run_id or args.entry_dir):
+        parser.error("segment mode requires --chat, --index, --video, --out and --board-out")
+    count = write_pack(args.meta, args.chat, args.index, args.video, args.out,
+                       args.board_out, args.entry_out)
     print(f"BridgeClip comments: {count} -> {args.out}, {args.board_out}")
 
 
