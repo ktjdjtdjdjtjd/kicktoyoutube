@@ -134,11 +134,34 @@ jobs:
             --chat out/chat.jsonl --emotes out/emotes --meta out/meta.json \
             --font fonts/BIZUDPGothic-Regular.ttf --out "$seg_name"
           rm -f vod.mp4
+      - name: Prepare BridgeClip hourly comments
+        id: bridgeclip_comments
+        if: inputs.slug == 'zingisukan2525'
+        continue-on-error: true
+        run: |
+          seg_name=$(printf 'seg_%03d.mp4' "${{ matrix.seg.idx }}")
+          seg_json=$(printf 'seg_%03d-comments.json' "${{ matrix.seg.idx }}")
+          board_json=$(printf 'seg_%03d-candidates.json' "${{ matrix.seg.idx }}")
+          PYTHONPATH=scripts python scripts/hourly_pack.py \
+            --meta out/meta.json --chat out/chat.jsonl \
+            --index "${{ matrix.seg.idx }}" --video "$seg_name" --out "$seg_json" \
+            --board-out "$board_json"
+      - name: Report missing BridgeClip comments without blocking archive upload
+        if: inputs.slug == 'zingisukan2525' && steps.bridgeclip_comments.outcome == 'failure'
+        run: |
+          seg_base=$(printf 'seg_%03d' "${{ matrix.seg.idx }}")
+          rm -f "${seg_base}-comments.json" "${seg_base}-candidates.json"
+          printf '{"bridgeclipPrep":"failed","videoOnly":true,"reason":"comments-or-duration-check"}\n' > "${seg_base}-bridgeclip-status.json"
+          echo '::warning::BridgeClip JSON pair was not prepared or video duration mismatched. This artifact contains video only; YouTube archive processing continues.'
       - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02  # v4
         with:
           name: seg-${{ matrix.seg.idx }}
-          path: seg_*.mp4
-          retention-days: 1
+          path: |
+            seg_*.mp4
+            seg_*-comments.json
+            seg_*-candidates.json
+            seg_*-bridgeclip-status.json
+          retention-days: ${{ inputs.slug == 'zingisukan2525' && 3 || 1 }}
 
   assemble:
     needs: [plan, burn]

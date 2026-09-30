@@ -49,6 +49,69 @@ def test_plan_segments():
         s[i]["end"] == s[i + 1]["start"] for i in range(len(s) - 1)) and s[-1]["end"] == 29051)
 
 
+def test_bridgeclip_hourly_pack():
+    import hourly_pack
+    from hourly_pack import build_pack, candidate_board, write_pack
+
+    segments = plan_segments(2 * 3600 + 600, 3600, merge_short_tail=False)
+    check("bc: 2h+10m stays in three hourly windows", segments == [
+        {"idx": 0, "start": 0, "end": 3600},
+        {"idx": 1, "start": 3600, "end": 7200},
+        {"idx": 2, "start": 7200, "end": 7800},
+    ])
+    meta = {"slug": "zingisukan2525", "uuid": "vod-id", "segments": segments}
+    rows = [{"rel": 3599.999, "content": "前"},
+            {"rel": 3600, "content": "[emote:1:Pog]ｗｗ"},
+            {"rel": 7200, "content": "末尾"},
+            {"rel": 7800, "content": "範囲外"}]
+    first = build_pack(meta, rows, 0)
+    second = build_pack(meta, rows, 1)
+    last = build_pack(meta, rows, 2)
+    check("bc: boundary belongs to the next hour", [len(p["messages"]) for p in
+          (first, second, last)] == [1, 1, 1])
+    check("bc: segment-relative times and emote label",
+          first["messages"][0]["seconds"] == 3599.999
+          and second["messages"][0]["seconds"] == 0
+          and second["messages"][0]["text"] == "Pogｗｗ"
+          and last["sourceStartSeconds"] == 7200
+          and last["durationSeconds"] == 600)
+    check("bc: empty comments still produce valid JSON",
+          build_pack(meta, [], 1)["messages"] == [])
+    board = candidate_board(second)
+    check("bc: candidate board follows BridgeClip 5m schema",
+          len(board["cands"]) == 12
+          and board["cands"][0] == {"start": 0, "end": 300, "score": 0.65, "rel": 0.2}
+          and board["cands"][1]["score"] == 0)
+    with tempfile.TemporaryDirectory() as td:
+        directory = Path(td)
+        (directory / "meta.json").write_text(json.dumps(meta), encoding="utf-8")
+        (directory / "chat.jsonl").write_text(
+            "\n".join(json.dumps(row, ensure_ascii=False) for row in rows) + "\n",
+            encoding="utf-8")
+        output = directory / "seg_001-comments.json"
+        board_output = directory / "seg_001-candidates.json"
+        old_probe = hourly_pack.probe_video_duration
+        hourly_pack.probe_video_duration = lambda path: 3600.0
+        try:
+            count = write_pack(directory / "meta.json", directory / "chat.jsonl", 1,
+                               directory / "seg_001.mp4", output, board_output)
+        finally:
+            hourly_pack.probe_video_duration = old_probe
+        saved = json.loads(output.read_text(encoding="utf-8"))
+        saved_board = json.loads(board_output.read_text(encoding="utf-8"))
+        check("bc: saved artifact is BridgeClip-compatible", count == 1
+              and saved["kickId"] == "vod-id"
+              and saved["messages"][0]["id"] == "chat-line-2"
+              and saved["messages"][0]["user"] == ""
+              and saved_board == board)
+    try:
+        build_pack({**meta, "slug": "hashimotokun78"}, rows, 1)
+    except ValueError:
+        check("bc: other channels are rejected", True)
+    else:
+        check("bc: other channels are rejected", False)
+
+
 def test_tokenize():
     t = emotes_mod.tokenize("あはは[emote:123:Sadge]ｗ[emote:45:Pog]")
     check("tokenize: mixed", t == [("text", "あはは"), ("emote", "123"),
@@ -664,6 +727,7 @@ def test_output_fps():
 
 def main():
     test_plan_segments()
+    test_bridgeclip_hourly_pack()
     test_tokenize()
     test_lane_speeds()
     test_layout_and_render()

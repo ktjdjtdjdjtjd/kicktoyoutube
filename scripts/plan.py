@@ -23,15 +23,15 @@ import twitch_chat_fetch
 import emotes as emotes_mod
 
 
-def plan_segments(duration_s, segment_seconds):
-    """[{'idx':0,'start':0,'end':5400}, ...]。端数が20分未満なら前セグメントに併合。"""
+def plan_segments(duration_s, segment_seconds, merge_short_tail=True):
+    """[{'idx':0,'start':0,'end':5400}, ...]。通常は20分未満の端数を併合。"""
     n = max(1, math.ceil(duration_s / segment_seconds))
     segs = []
     for i in range(n):
         start = i * segment_seconds
         end = min((i + 1) * segment_seconds, duration_s)
         segs.append({"idx": i, "start": start, "end": end})
-    if len(segs) >= 2 and (segs[-1]["end"] - segs[-1]["start"]) < 1200:
+    if merge_short_tail and len(segs) >= 2 and (segs[-1]["end"] - segs[-1]["start"]) < 1200:
         segs[-2]["end"] = segs[-1]["end"]
         segs.pop()
     return segs
@@ -211,7 +211,12 @@ def main():
             except Exception as e:
                 print(f"emote commit skipped: {e}", file=sys.stderr)
 
-    segments = plan_segments(meta["duration_s"], cfg.get("segment_seconds", 5400))
+    # BridgeClipでは各動画とコメントJSONが同じ厳密な1時間窓である必要がある。
+    # 他チャンネルの90分分割・短い末尾の併合は従来どおり維持する。
+    is_zingisukan = a.slug == "zingisukan2525" and platform == "kick"
+    segments = plan_segments(
+        meta["duration_s"], 3600 if is_zingisukan else cfg.get("segment_seconds", 5400),
+        merge_short_tail=not is_zingisukan)
     date = str(meta["start_time"])[:10]
     meta_out = {
         "slug": a.slug,
