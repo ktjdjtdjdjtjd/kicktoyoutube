@@ -9,5 +9,9 @@
   "dispatched_at": "2026-09-30T19:19:31.804492+00:00",
   "updated_at": "2026-09-30T20:26:37.089024+00:00",
   "yt_url": "https://www.youtube.com/watch?v=evKPN5gBmEI",
-  "chapters_attempts": 1
+  "chapters_attempts": 1,
+  "chapters": {
+    "result": "skipped-no-speech",
+    "at": "2026-10-01T18:47:11.982255+00:00"
+  }
 }
