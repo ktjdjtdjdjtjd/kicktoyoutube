@@ -4,7 +4,9 @@
   "title": "オールナイトジンギスカン！10月もよろしくお願いします。",
   "start_time": "2026-10-01 15:00:21",
   "duration_s": 21137.0,
-  "status": "dispatched",
+  "status": "done",
   "retries": 0,
-  "dispatched_at": "2026-10-02T00:47:21.998504+00:00"
+  "dispatched_at": "2026-10-02T00:47:21.998504+00:00",
+  "updated_at": "2026-10-02T04:40:17.326252+00:00",
+  "yt_url": "https://www.youtube.com/watch?v=ZrYcvxHiB88"
 }
