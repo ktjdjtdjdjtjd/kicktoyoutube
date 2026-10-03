@@ -1,0 +1,16 @@
+{
+  "uuid": "5035af28-d0bf-4308-a59c-e169618d8e1e",
+  "video_id": "kTmq4pE5mfo",
+  "model": "gemini-3.8-flash",
+  "approved_budget_usd": 10,
+  "reserved_usd": 0,
+  "generation_attempts": 0,
+  "phase": "ready",
+  "original_chapters": {
+    "result": "skipped-no-speech",
+    "at": "2026-10-03T05:18:24.831820+00:00"
+  },
+  "original_state_blob": "f58a9c8c201abad745fef975f5067977782d9d20",
+  "approved_scope": "existing description タイムスタンプ▽ block only; target chapters state only",
+  "approval_id": "execute-de19ffd56b"
+}
