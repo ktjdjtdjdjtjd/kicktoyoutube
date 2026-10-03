@@ -11,6 +11,7 @@
 """
 import argparse
 import json
+import math
 import os
 import re
 import subprocess
@@ -76,9 +77,11 @@ def pick_candidate(only_uuid=None):
             continue
         if d.get("status") != "done" or not d.get("yt_url"):
             continue
-        if d.get("chapters"):
+        retry = (bool(only_uuid) and only_uuid == d.get("uuid") and
+                 (d.get("chapters") or {}).get("result") == "retryable-transcription-failed")
+        if d.get("chapters") and not retry:
             continue
-        if int(d.get("chapters_attempts", 0)) >= 5:
+        if int(d.get("chapters_attempts", 0)) >= 5 and not retry:
             continue  # 失敗が続く動画は諦める (無限リトライ防止)
         if not d.get("slug"):
             continue  # 旧手動投入分はメタ不足のため対象外
@@ -143,6 +146,8 @@ def apply_glossary(lines, replace):
 def transcribe(path, model_size="small", chunk_s=1800):
     """30分チャンクずつ文字起こし (4時間級VODの一括処理はランナーVMごと
     落ちる=exit143 が実測されたため、常にメモリ有界にする)。"""
+    from transcription_preflight import check_input_decode
+    check_input_decode(path)  # Fail before model initialization/download.
     from faster_whisper import WhisperModel
     hint = "、".join(load_glossary()[0])[:200]  # initial_promptで固有名詞の認識を寄せる
     model = WhisperModel(model_size, device="cpu", compute_type="int8")
@@ -394,7 +399,8 @@ def _finish_with_gemini(path, st, lines, duration, cfg, ccfg, api_key, dry_run):
     12h超で分割投稿された動画(st['parts'])は、パートごとに文字起こしを切り出し
     パート内時刻(0起点)で章立てして各動画の説明欄を更新する。"""
     if len(lines) < 20:
-        _mark(path, st, "skipped-no-speech")
+        if not dry_run:
+            _mark(path, st, "skipped-insufficient-transcript", {"n_lines": len(lines)})
         return
     lines = apply_glossary(lines, load_glossary()[1])  # 単語帳の確定置換
     save_transcript(st, lines)  # 章立ての前に保存 (Gemini失敗でも成果を残す)
@@ -509,15 +515,14 @@ def cmd_transcribe(ccfg, slug, uuid, idx, start, end, out_dir="segs"):
     abs_lines = [[float(start) + t, txt] for t, txt in lines]
     Path(out_dir).mkdir(parents=True, exist_ok=True)
     (Path(out_dir) / f"seg_{idx:03d}.json").write_text(
-        json.dumps({"idx": idx, "start": start, "end": end, "lines": abs_lines},
+        json.dumps({"uuid": uuid, "idx": idx, "start": start, "end": end, "lines": abs_lines},
                    ensure_ascii=False), encoding="utf-8")
     print(f"transcribe seg {idx}: {len(abs_lines)} lines [{start:.0f}-{end:.0f}s]",
           file=sys.stderr)
 
 
 def cmd_finalize(cfg, ccfg, api_key, dry_run, plan_dir="out", seg_dir="segs"):
-    """各区間の seg_*.json を結合→Gemini章立て→説明欄更新。欠損区間があっても
-    残りで続行する (単一区間のDL失敗で全体を赤failにして試行を溶かさない)。"""
+    """Require all valid segment transcripts before chapter generation."""
     plan_file = Path(plan_dir) / "chapters_plan.json"
     if not plan_file.exists():
         print("no chapters_plan.json — nothing to finalize")
@@ -527,18 +532,44 @@ def cmd_finalize(cfg, ccfg, api_key, dry_run, plan_dir="out", seg_dir="segs"):
     if not st:
         print(f"state not found for {plan['uuid']}", file=sys.stderr)
         return
-    seg_files = sorted(Path(seg_dir).rglob("seg_*.json"))
-    lines = []
-    for f in seg_files:
+    # A concurrent/previous successful finalizer must never be overwritten.
+    if st.get("chapters") and st["chapters"].get("result") != "retryable-transcription-failed":
+        print("chapters already finalized; preserving state", file=sys.stderr)
+        return
+    want = int(plan.get("n_segments", 0))
+    duration = float(plan["duration_s"])
+    lines, seen, invalid = [], set(), []
+    for f in sorted(Path(seg_dir).rglob("seg_*.json")):
         try:
-            lines.extend(json.loads(f.read_text(encoding="utf-8")).get("lines", []))
-        except Exception as e:
-            print(f"{f}: {e} — skip", file=sys.stderr)
+            seg = json.loads(f.read_text(encoding="utf-8"))
+            idx = seg["idx"]
+            if (type(idx) is not int or not 0 <= idx < want or idx in seen
+                    or seg.get("uuid") != plan["uuid"]):
+                raise ValueError("invalid, duplicate or mismatched segment identity")
+            rows = seg["lines"]
+            if not isinstance(rows, list):
+                raise ValueError("lines must be a list")
+            for row in rows:
+                if (not isinstance(row, list) or len(row) != 2
+                        or type(row[0]) not in (int, float)
+                        or not math.isfinite(row[0]) or not 0 <= row[0] <= duration
+                        or not isinstance(row[1], str) or not row[1].strip()):
+                    raise ValueError("invalid transcript row")
+            seen.add(idx)
+            lines.extend(rows)
+        except (ValueError, TypeError, KeyError, OSError) as e:
+            invalid.append(f.name)
+            print(f"{f.name}: {e}", file=sys.stderr)
+    got = len(seen)
+    print(f"finalize: {len(lines)} lines from {got}/{want} valid segments", file=sys.stderr)
+    if want <= 0 or not math.isfinite(duration) or duration <= 0 or got != want or invalid:
+        if not dry_run:
+            _mark(path, st, "retryable-transcription-failed",
+                  {"valid_segments": got, "expected_segments": want,
+                   "missing_indices": sorted(set(range(max(0, want))) - seen),
+                   "invalid_files": invalid})
+        raise RuntimeError("incomplete/invalid transcription; no chapter generation or upload")
     lines.sort(key=lambda x: x[0])
-    got, want = len(seg_files), int(plan.get("n_segments", 0))
-    print(f"finalize: {len(lines)} lines from {got}/{want} segments", file=sys.stderr)
-    if want and got < want:
-        print(f"WARNING: {want - got} 区間が欠損 — 残りで続行", file=sys.stderr)
     _finish_with_gemini(path, st, lines, float(plan["duration_s"]),
                         cfg, ccfg, api_key, dry_run)
 

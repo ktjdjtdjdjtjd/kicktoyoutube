@@ -78,6 +78,8 @@ def transcribe_srt(model, clip, srt_path):
     subprocess.run(["ffmpeg", "-y", "-hide_banner", "-loglevel", "error",
                     "-i", clip, "-vn", "-ac", "1", "-ar", "16000", wav],
                    check=True)
+    from transcription_preflight import check_input_decode
+    check_input_decode(wav)
     segments, _ = model.transcribe(wav, language="ja", beam_size=1,
                                    vad_filter=True,
                                    vad_parameters={"min_silence_duration_ms": 700})
