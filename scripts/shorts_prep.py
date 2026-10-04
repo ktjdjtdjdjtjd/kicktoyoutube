@@ -11,6 +11,7 @@ Geminiでヘッダータイトル案(1行7〜9文字×2案)。out_shorts/ を ar
 """
 import argparse
 import json
+import math
 import re
 import os
 import subprocess
@@ -73,14 +74,14 @@ def cut_clip(source, start, end, dest, height):
         "-o", dest, source], check=True)
 
 
-def transcribe_srt(model, clip, srt_path):
+def transcribe_srt(model, clip, srt_path, diagnostics=None):
     wav = "clip_audio.wav"
     subprocess.run(["ffmpeg", "-y", "-hide_banner", "-loglevel", "error",
                     "-i", clip, "-vn", "-ac", "1", "-ar", "16000", wav],
                    check=True)
     from transcription_preflight import check_input_decode
     check_input_decode(wav)
-    segments, _ = model.transcribe(wav, language="ja", beam_size=1,
+    segments, info = model.transcribe(wav, language="ja", beam_size=1,
                                    vad_filter=True,
                                    vad_parameters={"min_silence_duration_ms": 700})
     def ts(t):
@@ -90,15 +91,42 @@ def transcribe_srt(model, clip, srt_path):
     lines = []
     texts = []
     n = 0
+    raw_segments = 0
+    blank_segments = 0
     for seg in segments:
+        raw_segments += 1
         text = seg.text.strip()
         if not text:
+            blank_segments += 1
             continue
         n += 1
         lines.append(f"{n}\n{ts(seg.start)} --> {ts(seg.end)}\n{text}\n")
         texts.append(text)
     Path(srt_path).write_text("\n".join(lines), encoding="utf-8")
     Path(wav).unlink(missing_ok=True)
+    if diagnostics is not None:
+        def finite_duration(name):
+            value = getattr(info, name, None)
+            return value if type(value) in (int, float) and math.isfinite(value) and value >= 0 else None
+        duration = finite_duration("duration")
+        after_vad = finite_duration("duration_after_vad")
+        diagnostics.update({
+            "status": "transcribed" if texts else "needs-audio-review",
+            "cause": None if texts else "undetermined",
+            "duration": duration,
+            "duration_after_vad": after_vad,
+            "duration_info_status": "known" if duration is not None and after_vad is not None else "unknown",
+            "raw_segments": raw_segments,
+            "nonblank_subtitles": len(texts),
+            "blank_segments": blank_segments,
+            "vad_no_speech_detected": None if after_vad is None else after_vad == 0,
+        })
+        message = (f"{clip}: status={diagnostics['status']}; raw_segments={raw_segments}, "
+                   f"nonblank_subtitles={len(texts)}, blank_segments={blank_segments}, "
+                   f"duration={duration}, duration_after_vad={after_vad}")
+        if not texts:
+            message += "; cause=undetermined; zero subtitles do not establish silent audio"
+        print(message, file=sys.stderr)
     return texts
 
 
@@ -150,12 +178,14 @@ def main():
         srt = outdir / f"clip_{cid:02d}.srt"
         try:
             cut_clip(source, float(seg["start"]), float(seg["end"]), str(clip), height)
-            texts = transcribe_srt(model, str(clip), str(srt))
+            transcription = {}
+            texts = transcribe_srt(model, str(clip), str(srt), diagnostics=transcription)
             titles = gemini_titles(" ".join(texts), api_key)
             manifest["clips"].append({
                 "id": cid, "start": seg["start"], "end": seg["end"],
                 "file": clip.name, "srt": srt.name,
                 "n_lines": len(texts), "titles": titles,
+                "transcription": transcription,
                 # 候補選定が付けた材料。朝に見比べて選ぶときの判断根拠になるので残す
                 **{k: seg[k] for k in ("score", "rel", "msgs", "tags", "comments")
                    if k in seg},
