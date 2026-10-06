@@ -4,7 +4,9 @@
   "title": "OWやるぞー",
   "start_time": "2026-10-05T10:44:16Z",
   "duration_s": 18159.0,
-  "status": "dispatched",
+  "status": "done",
   "retries": 0,
-  "dispatched_at": "2026-10-06T07:23:15.867979+00:00"
+  "dispatched_at": "2026-10-06T07:23:15.867979+00:00",
+  "updated_at": "2026-10-06T11:25:21.905860+00:00",
+  "yt_url": "https://www.youtube.com/watch?v=9euakbpaoTI"
 }
