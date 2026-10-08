@@ -198,12 +198,16 @@ jobs:
         with:
           pattern: bridgeclip-hour-*
           path: hours
+      - name: Read uploaded segment artifact metadata (no video download)
+        run: |
+          PYTHONPATH=scripts python scripts/retention_manifest.py \
+            --run-id "${{ github.run_id }}" --pages-out artifact-pages.json
       - name: Rank hourly artifacts from verified small receipts only
         run: |
           PYTHONPATH=scripts python scripts/hourly_pack.py \
             --meta out/meta.json --entry-dir hours \
             --index-out bridgeclip-index.json --run-id "${{ github.run_id }}" \
-            --require-all "${{ inputs.trial_mode }}"
+            --require-all true --artifact-pages artifact-pages.json --run-attempt "${{ github.run_attempt }}"
       - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02  # v4
         with:
           name: bridgeclip-index

@@ -1,0 +1,109 @@
+name: Preserve approved BridgeClip archives
+on:
+  workflow_dispatch:
+    inputs:
+      source_run:
+        description: Existing approved run (37396768744 or 37654712775)
+        required: true
+        type: choice
+        options: ['37396768744', '37654712775']
+permissions:
+  contents: read
+  actions: read
+concurrency:
+  group: bridgeclip-preserve-${{ inputs.source_run }}
+  cancel-in-progress: false
+jobs:
+  plan:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    outputs:
+      segments: ${{ steps.plan.outputs.segments }}
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+      - id: plan
+        env:
+          GH_TOKEN: ${{ github.token }}
+          SOURCE_RUN: ${{ inputs.source_run }}
+        run: PYTHONPATH=scripts python scripts/preserve_bridgeclip.py plan --source-run "$SOURCE_RUN"
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: source-index
+          path: context/
+          retention-days: 90
+          if-no-files-found: error
+          overwrite: false
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: chatpack
+          path: out/
+          retention-days: 90
+          if-no-files-found: error
+          overwrite: false
+  preserve:
+    needs: plan
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    strategy:
+      fail-fast: true
+      max-parallel: 1
+      matrix:
+        segment: ${{ fromJSON(needs.plan.outputs.segments) }}
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+      - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093
+        with:
+          name: source-index
+          path: context
+      - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093
+        with:
+          name: chatpack
+          path: out
+      - name: Validate source ZIP and unchanged video/comment/candidate pair
+        env:
+          GH_TOKEN: ${{ github.token }}
+          SOURCE_RUN: ${{ inputs.source_run }}
+          SEGMENT: ${{ matrix.segment }}
+        run: |
+          command -v ffprobe >/dev/null || { sudo apt-get update -qq && sudo apt-get install -y -qq ffmpeg; }
+          PYTHONPATH=scripts python scripts/preserve_bridgeclip.py segment --source-run "$SOURCE_RUN" --segment "$SEGMENT"
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: seg-${{ matrix.segment }}
+          path: segment/
+          retention-days: 90
+          if-no-files-found: error
+          overwrite: false
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: bridgeclip-hour-${{ matrix.segment }}
+          path: receipt/
+          retention-days: 90
+          if-no-files-found: error
+          overwrite: false
+  complete:
+    needs: [plan, preserve]
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+      - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093
+        with:
+          name: chatpack
+          path: out
+      - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093
+        with:
+          pattern: bridgeclip-hour-*
+          path: hours
+      - name: Require all 13 receipts and live new artifact metadata
+        env:
+          GH_TOKEN: ${{ github.token }}
+          SOURCE_RUN: ${{ inputs.source_run }}
+        run: PYTHONPATH=scripts python scripts/preserve_bridgeclip.py finalize --source-run "$SOURCE_RUN" --new-run "$GITHUB_RUN_ID" --attempt "$GITHUB_RUN_ATTEMPT"
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: bridgeclip-index
+          path: bridgeclip-index.json
+          retention-days: 90
+          if-no-files-found: error
+          overwrite: false

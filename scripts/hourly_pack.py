@@ -180,6 +180,8 @@ def write_pack(meta_path, chat_path, index, video_path, out_path, board_path, en
         _validate_pair(out, board_out, pack, board)
         if entry_out:
             entry = segment_entry(pack, board, index)
+            from retention_manifest import file_receipts
+            entry["files"] = file_receipts([video_path, out, board_out])
             _atomic_json(entry_out, entry)
             if json.loads(entry_out.read_text(encoding="utf-8")) != entry:
                 raise ValueError("BridgeClip entry does not match finalized pair")
@@ -242,12 +244,16 @@ def build_index(meta, entries, run_id, require_all=False):
     }
 
 
-def write_index(meta_path, entry_dir, run_id, out_path, require_all=False):
+def write_index(meta_path, entry_dir, run_id, out_path, require_all=False, artifact_pages=None, run_attempt=None):
     directory = Path(entry_dir)
     entries = [json.loads(path.read_text(encoding="utf-8"))
                for path in directory.glob("bridgeclip-hour-*/seg_*-index.json")]
     index = build_index(json.loads(Path(meta_path).read_text(encoding="utf-8")),
                         entries, run_id, require_all)
+    if artifact_pages is not None:
+        from retention_manifest import verified_manifest
+        index = verified_manifest(index, json.loads(Path(meta_path).read_text(encoding="utf-8")),
+                                  json.loads(Path(artifact_pages).read_text(encoding="utf-8")), run_attempt)
     dest = Path(out_path)
     if dest.exists():
         raise FileExistsError("BridgeClip index already exists; refusing to overwrite")
@@ -273,6 +279,8 @@ def main():
     parser.add_argument("--run-id")
     parser.add_argument("--entry-out")
     parser.add_argument("--entry-dir")
+    parser.add_argument("--artifact-pages")
+    parser.add_argument("--run-attempt", type=int)
     parser.add_argument("--require-all", choices=("true", "false"), default="false")
     args = parser.parse_args()
     if args.index_out:
@@ -280,11 +288,11 @@ def main():
                 or args.chat or args.entry_out or not args.run_id or not args.entry_dir):
             parser.error("index mode requires --run-id/--entry-dir and excludes segment arguments")
         count = write_index(args.meta, args.entry_dir, args.run_id, args.index_out,
-                            args.require_all == "true")
+                            args.require_all == "true", args.artifact_pages, args.run_attempt)
         print(f"BridgeClip hourly index: {count} -> {args.index_out}")
         return
     if (args.index is None or not args.chat or not args.video or not args.out
-            or not args.board_out or args.run_id or args.entry_dir):
+            or not args.board_out or args.run_id or args.entry_dir or args.artifact_pages or args.run_attempt):
         parser.error("segment mode requires --chat, --index, --video, --out and --board-out")
     count = write_pack(args.meta, args.chat, args.index, args.video, args.out,
                        args.board_out, args.entry_out)
