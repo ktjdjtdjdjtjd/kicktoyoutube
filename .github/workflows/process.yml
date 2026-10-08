@@ -166,7 +166,7 @@ jobs:
           name: bridgeclip-hour-${{ matrix.seg.idx }}
           path: seg_*-index.json
           if-no-files-found: error
-          retention-days: 1
+          retention-days: ${{ inputs.slug == 'zingisukan2525' && 90 || 1 }}
       - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02  # v4
         with:
           name: seg-${{ matrix.seg.idx }}
@@ -175,7 +175,7 @@ jobs:
             seg_*-comments.json
             seg_*-candidates.json
             seg_*-bridgeclip-status.json
-          retention-days: ${{ inputs.slug == 'zingisukan2525' && 3 || 1 }}
+          retention-days: ${{ inputs.slug == 'zingisukan2525' && 90 || 1 }}
 
   ready_index:
     needs: [plan, burn]
@@ -209,7 +209,7 @@ jobs:
           name: bridgeclip-index
           path: bridgeclip-index.json
           if-no-files-found: error
-          retention-days: 3
+          retention-days: ${{ inputs.slug == 'zingisukan2525' && 90 || 3 }}
 
   assemble:
     needs: [plan, burn]
