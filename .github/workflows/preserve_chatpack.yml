@@ -1,0 +1,27 @@
+name: Preserve approved source chatpack only
+on:
+  workflow_dispatch:
+permissions:
+  contents: read
+  actions: read
+concurrency:
+  group: bridgeclip-chatpack-only-11530498847
+  cancel-in-progress: false
+jobs:
+  preserve:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+      - name: Copy only the approved unchanged source ZIP
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: python3 scripts/preserve_chatpack.py
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: bridgeclip-source-chatpack-11530498847
+          path: preserved-chatpack/
+          retention-days: 90
+          compression-level: 0
+          if-no-files-found: error
+          overwrite: false
