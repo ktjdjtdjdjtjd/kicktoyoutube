@@ -38,7 +38,7 @@ env:
 jobs:
   plan:
     runs-on: ubuntu-latest
-    timeout-minutes: 120
+    timeout-minutes: ${{ inputs.trial_mode && 180 || 120 }}
     outputs:
       matrix: ${{ steps.plan.outputs.matrix }}
       title: ${{ steps.plan.outputs.title }}
@@ -300,3 +300,4 @@ jobs:
           curl -fsS -H "Content-Type: application/json" \
             -d "$(python -c 'import json,os;print(json.dumps({"content":os.environ["MSG"]}))')" \
             "$WEBHOOK" || true
+

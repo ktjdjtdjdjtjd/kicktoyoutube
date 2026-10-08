@@ -33,7 +33,7 @@ def parse_dt(s):
     return dt
 
 
-def fetch_all_chat(channel_id, start_dt, duration_s, workers=8, keep_emotes=False):
+def fetch_all_chat(channel_id, start_dt, duration_s, workers=8, keep_emotes=False, *, strict=False, coverage_out=None):
     """5秒窓で全区間を並列取得。[(rel_sec, content), ...] を時系列で返す。
     keep_emotes=True なら [emote:id:name] マーカーを原文のまま残す (画像焼き込み用)。"""
     offsets = list(range(0, int(duration_s) + 5, 5))
@@ -42,11 +42,13 @@ def fetch_all_chat(channel_id, start_dt, duration_s, workers=8, keep_emotes=Fals
     seen_ids = set()
     lock = threading.Lock()
     done = [0]
+    coverage = []
 
     def worker(off):
         t = start_dt + timedelta(seconds=off)
         iso = t.astimezone(timezone.utc).isoformat().replace("+00:00", "Z")
-        msgs = kick_api.get_chat_window(channel_id, iso)
+        receipt = {'offsetSeconds':off,'requestedStartUTC':iso}
+        msgs = kick_api.get_chat_window(channel_id, iso, strict=True, receipt=receipt) if strict else kick_api.get_chat_window(channel_id, iso)
         local = []
         for m in msgs:
             mid = m.get("id")
@@ -54,10 +56,12 @@ def fetch_all_chat(channel_id, start_dt, duration_s, workers=8, keep_emotes=Fals
             sender = m.get("sender") or {}
             content = m.get("content") or ""
             if not (mid and created and sender.get("username") and content):
+                if strict: raise RuntimeError('Strict chat invalid message fields')
                 continue
             try:
                 rel = (parse_dt(created) - start_dt).total_seconds()
             except Exception:
+                if strict: raise RuntimeError('Strict chat invalid timestamp')
                 continue
             if rel < -5 or rel > duration_s + 30:
                 continue
@@ -80,11 +84,23 @@ def fetch_all_chat(channel_id, start_dt, duration_s, workers=8, keep_emotes=Fals
                 seen_ids.add(mid)
                 all_msgs.append((rel, content))
             done[0] += 1
+            if strict: coverage.append(receipt)
             if done[0] % 100 == 0 or done[0] == len(offsets):
                 print(f"progress: {done[0]}/{len(offsets)} msgs={len(all_msgs)}", file=sys.stderr)
 
-    with ThreadPoolExecutor(max_workers=workers) as ex:
-        list(ex.map(worker, offsets))
+    if strict:
+        # No executor queue: the first failed window stops immediately.
+        for offset in offsets: worker(offset)
+        if len(coverage)!=len(offsets): raise RuntimeError('Strict chat coverage incomplete')
+        if coverage_out is not None:
+            coverage_out.update({'schemaVersion':1,'complete':True,'coverageKind':'successful-api-windows',
+                                 'channelId':channel_id,'startedAt':start_dt.astimezone(timezone.utc).isoformat(),
+                                 'durationSeconds':duration_s,'expectedWindows':len(offsets),'successfulWindows':len(coverage),
+                                 'windowSeconds':5,'minimumRequestIntervalSeconds':1,'windows':coverage,
+                                 'allApiMessagesGuarantee':False})
+    else:
+        with ThreadPoolExecutor(max_workers=workers) as ex:
+            list(ex.map(worker, offsets))
     all_msgs.sort(key=lambda x: x[0])
     return all_msgs
 

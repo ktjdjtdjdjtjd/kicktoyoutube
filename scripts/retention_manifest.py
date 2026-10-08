@@ -78,6 +78,18 @@ def utc_start(raw):
 
 def verified_manifest(index, meta, pages, run_attempt, now=None):
     now = now or datetime.now(timezone.utc)
+    coverage = meta.get('chatCoverage')
+    if meta.get('chatCoverageRequired'):
+        expected_windows = len(range(0, int(meta['duration_s'])+5, 5))
+        if (not isinstance(coverage, dict) or coverage.get('complete') is not True
+                or coverage.get('coverageKind') != 'successful-api-windows'
+                or coverage.get('expectedWindows') != expected_windows
+                or coverage.get('successfulWindows') != expected_windows
+                or coverage.get('kickId') != meta.get('uuid')
+                or coverage.get('durationSeconds') != meta.get('duration_s')
+                or not SHA256.fullmatch(str(coverage.get('chatJSONLDigest', '')))
+                or not SHA256.fullmatch(str(coverage.get('receiptDigest', '')))):
+            raise ValueError('strict trial chat coverage incomplete')
     if type(run_attempt) is not int or run_attempt < 1:
         raise ValueError('invalid run attempt')
     if not isinstance(pages, list) or not pages:
@@ -100,6 +112,7 @@ def verified_manifest(index, meta, pages, run_attempt, now=None):
             or sorted(s['index'] for s in index['segments']) != expected):
         raise ValueError('all planned receipts required')
     result = dict(index)
+    if meta.get('chatCoverageRequired'): result['chatCoverage'] = coverage
     result.update({'complete': True, 'expectedSegmentIndices': expected,
                    'startedAt': utc_start(meta.get('start_time')),
                    'runAttempt': run_attempt, 'retentionDays': 90})

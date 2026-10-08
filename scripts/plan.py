@@ -11,6 +11,7 @@ GITHUB_OUTPUT があれば matrix / title / duration_s / date を書き込む。
 """
 import argparse
 import json
+import hashlib
 import math
 import os
 import shutil
@@ -181,6 +182,7 @@ def main():
     print(f"title={meta['title']} duration={meta['duration_s']}s "
           f"channel_id={meta['channel_id']} start={meta['start_time']}", file=sys.stderr)
 
+    coverage = {}
     chat_dur = meta["duration_s"]
     if a.limit_windows:
         chat_dur = min(chat_dur, a.limit_windows * 5)
@@ -192,10 +194,20 @@ def main():
         start_dt = chat_fetch.parse_dt(meta["start_time"])
         msgs = chat_fetch.fetch_all_chat(
             meta["channel_id"], start_dt, chat_dur,
-            workers=cfg.get("chat_workers", 8), keep_emotes=True)
+            workers=1 if trial_mode else cfg.get("chat_workers", 8), keep_emotes=True,
+            strict=trial_mode, coverage_out=coverage if trial_mode else None)
     with open(outdir / "chat.jsonl", "w", encoding="utf-8") as f:
         for rel, content in msgs:
             f.write(json.dumps({"rel": rel, "content": content}, ensure_ascii=False) + "\n")
+
+    if trial_mode:
+        if coverage.get('complete') is not True: raise RuntimeError('Trial chat coverage missing')
+        coverage['kickId'] = a.uuid
+        digest = hashlib.sha256()
+        with (outdir / 'chat.jsonl').open('rb') as chatfile:
+            for chunk in iter(lambda: chatfile.read(1024*1024), b''): digest.update(chunk)
+        coverage['chatJSONLDigest'] = 'sha256:'+digest.hexdigest()
+        (outdir / 'chat-coverage.json').write_text(json.dumps(coverage), encoding='utf8')
 
     if platform == "twitch":
         pass  # Kick専用エモートDL/蓄積はスキップ (Twitchエモートは非対応)
@@ -238,6 +250,14 @@ def main():
         "segments": segments,
         "n_messages": len(msgs),
     }
+    if trial_mode:
+        coverage_bytes = (outdir / 'chat-coverage.json').read_bytes()
+        meta_out['chatCoverageRequired'] = True
+        meta_out['chatCoverage'] = {'complete':True, 'coverageKind':'successful-api-windows',
+            'expectedWindows':coverage['expectedWindows'], 'successfulWindows':coverage['successfulWindows'],
+            'durationSeconds':chat_dur, 'kickId':a.uuid, 'chatJSONLDigest':coverage['chatJSONLDigest'],
+            'receiptDigest':'sha256:'+hashlib.sha256(coverage_bytes).hexdigest(),
+            'capWarnings':sum(bool(w.get('warnings')) for w in coverage['windows']), 'allApiMessagesGuarantee':False}
     (outdir / "meta.json").write_text(
         json.dumps(meta_out, ensure_ascii=False, indent=2), encoding="utf-8")
 
