@@ -5,6 +5,6 @@
   "start_time": "2026-10-10 08:22:34",
   "duration_s": 21243.0,
   "status": "dispatched",
-  "retries": 0,
-  "dispatched_at": "2026-10-10T15:30:53.916990+00:00"
+  "retries": 1,
+  "dispatched_at": "2026-10-10T19:32:00.592523+00:00"
 }
