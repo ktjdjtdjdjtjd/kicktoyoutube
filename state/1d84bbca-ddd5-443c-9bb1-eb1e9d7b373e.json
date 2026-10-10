@@ -4,7 +4,9 @@
   "title": "【第2回】かつきくんと手錠を繋いだ状態で山手線一周します。残り鶯谷〜新宿東口前まで！",
   "start_time": "2026-10-10 03:06:10",
   "duration_s": 19098.0,
-  "status": "dispatched",
+  "status": "done",
   "retries": 0,
-  "dispatched_at": "2026-10-10T09:24:21.414526+00:00"
+  "dispatched_at": "2026-10-10T09:24:21.414526+00:00",
+  "updated_at": "2026-10-10T13:31:23.569587+00:00",
+  "yt_url": "https://www.youtube.com/watch?v=BDayuD_ZBJk"
 }
