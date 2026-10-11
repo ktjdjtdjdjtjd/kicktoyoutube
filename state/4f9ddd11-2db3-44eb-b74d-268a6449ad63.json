@@ -4,7 +4,10 @@
   "title": "ジンギスカンさんと手錠で手足を繋いで二人三脚で山手線一周！！　ラストスパート　田町駅〜新宿駅",
   "start_time": "2026-10-10 08:22:34",
   "duration_s": 21243.0,
-  "status": "dispatched",
+  "status": "needs-review",
   "retries": 4,
-  "dispatched_at": "2026-10-11T14:38:19.943242+00:00"
+  "dispatched_at": "2026-10-11T14:38:19.943242+00:00",
+  "failure_class": "process-failed",
+  "last_failed_at": "2026-10-11T19:11:13.243348+00:00",
+  "review_reason": "自動再試行5回失敗のため自動投入を停止。再開する場合は retries を0に戻し status を削除する"
 }
