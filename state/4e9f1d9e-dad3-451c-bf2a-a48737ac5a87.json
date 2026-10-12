@@ -4,7 +4,9 @@
   "title": "配信者IQテストに参加します。最下位だけはまじ避けたい！",
   "start_time": "2026-10-12 04:33:17",
   "duration_s": 14008.0,
-  "status": "dispatched",
+  "status": "done",
   "retries": 0,
-  "dispatched_at": "2026-10-12T09:11:29.599580+00:00"
+  "dispatched_at": "2026-10-12T09:11:29.599580+00:00",
+  "updated_at": "2026-10-12T12:49:25.441923+00:00",
+  "yt_url": "https://www.youtube.com/watch?v=GaQTsEFuJIg"
 }
