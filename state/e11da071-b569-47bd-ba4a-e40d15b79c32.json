@@ -4,7 +4,9 @@
   "title": "IQ62の男の配信。",
   "start_time": "2026-10-12 11:35:08",
   "duration_s": 9107.0,
-  "status": "dispatched",
+  "status": "done",
   "retries": 0,
-  "dispatched_at": "2026-10-13T08:05:52.252781+00:00"
+  "dispatched_at": "2026-10-13T08:05:52.252781+00:00",
+  "updated_at": "2026-10-13T10:19:42.887541+00:00",
+  "yt_url": "https://www.youtube.com/watch?v=f8OcQ9uNeyU"
 }
