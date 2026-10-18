@@ -4,7 +4,9 @@
   "title": "リア凸禁止 ウォーキングタウン24時間耐久レース放送",
   "start_time": "2026-10-17 13:14:39",
   "duration_s": 36748.0,
-  "status": "dispatched",
+  "status": "done",
   "retries": 0,
-  "dispatched_at": "2026-10-18T00:09:23.703855+00:00"
+  "dispatched_at": "2026-10-18T00:09:23.703855+00:00",
+  "updated_at": "2026-10-18T07:34:23.092298+00:00",
+  "yt_url": "https://www.youtube.com/watch?v=uoPQKfNfgJY"
 }
