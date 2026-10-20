@@ -4,7 +4,25 @@
   "title": "【カットトロ】イメチェンして若返るぞ",
   "start_time": "2026-10-19 04:33:11",
   "duration_s": 62380.0,
-  "status": "dispatched",
-  "retries": 1,
-  "dispatched_at": "2026-10-20T12:59:51.672385+00:00"
+  "status": "done",
+  "retries": 0,
+  "dispatched_at": "2026-10-19T23:40:40.508901+00:00",
+  "updated_at": "2026-10-20T13:58:51.522240+00:00",
+  "yt_url": "https://www.youtube.com/watch?v=iZwtNCYcgQ4",
+  "parts": [
+    {
+      "id": "iZwtNCYcgQ4",
+      "url": "https://www.youtube.com/watch?v=iZwtNCYcgQ4",
+      "title": "【かつき】【カットトロ】イメチェンして若返るぞ【2026/10/19】（1/2）",
+      "start_s": 0.0,
+      "duration_s": 31192.697
+    },
+    {
+      "id": "2zuuFByl6wk",
+      "url": "https://www.youtube.com/watch?v=2zuuFByl6wk",
+      "title": "【かつき】【カットトロ】イメチェンして若返るぞ【2026/10/19】（2/2）",
+      "start_s": 31192.697,
+      "duration_s": 31188.472
+    }
+  ]
 }
