@@ -25,5 +25,11 @@
       "duration_s": 31188.472
     }
   ],
-  "chapters_attempts": 1
+  "chapters_attempts": 1,
+  "chapters": {
+    "result": "done",
+    "at": "2026-10-20T14:40:30.390115+00:00",
+    "n": 128,
+    "parts_done": 2
+  }
 }
