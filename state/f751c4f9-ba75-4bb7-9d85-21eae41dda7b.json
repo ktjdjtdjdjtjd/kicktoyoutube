@@ -4,7 +4,9 @@
   "title": "数ヶ月振りの函館に帰省。トラブル発生中！",
   "start_time": "2026-10-22 07:15:10",
   "duration_s": 32735.0,
-  "status": "dispatched",
+  "status": "done",
   "retries": 0,
-  "dispatched_at": "2026-10-22T19:22:58.612607+00:00"
+  "dispatched_at": "2026-10-22T19:22:58.612607+00:00",
+  "updated_at": "2026-10-23T01:39:20.406827+00:00",
+  "yt_url": "https://www.youtube.com/watch?v=D2DWjmu5KlU"
 }
