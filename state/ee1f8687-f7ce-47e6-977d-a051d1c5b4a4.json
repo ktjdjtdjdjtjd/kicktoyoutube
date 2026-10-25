@@ -4,7 +4,9 @@
   "title": "また事故った　車載禁止くるか？",
   "start_time": "2026-10-25 06:51:32",
   "duration_s": 8126.0,
-  "status": "dispatched",
+  "status": "done",
   "retries": 0,
-  "dispatched_at": "2026-10-25T13:50:02.278248+00:00"
+  "dispatched_at": "2026-10-25T13:50:02.278248+00:00",
+  "updated_at": "2026-10-25T15:38:24.685470+00:00",
+  "yt_url": "https://www.youtube.com/watch?v=a6mZ1tIQcIA"
 }
