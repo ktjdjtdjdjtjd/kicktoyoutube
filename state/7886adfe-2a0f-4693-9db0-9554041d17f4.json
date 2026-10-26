@@ -4,7 +4,9 @@
   "title": "秘湯に向かうぞ！",
   "start_time": "2026-10-25 12:23:34",
   "duration_s": 37909.0,
-  "status": "dispatched",
+  "status": "done",
   "retries": 0,
-  "dispatched_at": "2026-10-26T00:32:58.598598+00:00"
+  "dispatched_at": "2026-10-26T00:32:58.598598+00:00",
+  "updated_at": "2026-10-26T08:13:50.813191+00:00",
+  "yt_url": "https://www.youtube.com/watch?v=dKIPJWz2YjU"
 }
