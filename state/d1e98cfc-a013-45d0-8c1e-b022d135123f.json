@@ -4,7 +4,9 @@
   "title": "😎レイド乞食",
   "start_time": "2026-10-26 20:04:07",
   "duration_s": 2113.0,
-  "status": "dispatched",
+  "status": "done",
   "retries": 0,
-  "dispatched_at": "2026-10-27T01:08:01.452746+00:00"
+  "dispatched_at": "2026-10-27T01:08:01.452746+00:00",
+  "updated_at": "2026-10-27T02:10:39.183678+00:00",
+  "yt_url": "https://www.youtube.com/watch?v=pd7hEQLUze4"
 }
