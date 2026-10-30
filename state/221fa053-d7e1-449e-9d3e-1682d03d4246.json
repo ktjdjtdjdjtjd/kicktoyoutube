@@ -4,7 +4,10 @@
   "title": "外部サイト300人以下の男",
   "start_time": "2026-10-28 14:09:32",
   "duration_s": 10383.0,
-  "status": "dispatched",
+  "status": "needs-review",
   "retries": 4,
-  "dispatched_at": "2026-10-30T01:14:22.271271+00:00"
+  "dispatched_at": "2026-10-30T01:14:22.271271+00:00",
+  "failure_class": "process-failed",
+  "last_failed_at": "2026-10-30T07:13:40.203849+00:00",
+  "review_reason": "自動再試行5回失敗のため自動投入を停止。再開する場合は retries を0に戻し status を削除する"
 }
