@@ -24,7 +24,21 @@ env:
   FONT_BLOB_SHA: "0753da0963c2fa25c5b5990d13f51842cb34e50d"
 
 jobs:
+  guard:
+    # TOP10_RELEASE_TOKEN が無ければ何もせず正常終了（動画DL・焼き込み・アップロードは一切しない）
+    runs-on: ubuntu-latest
+    timeout-minutes: 2
+    outputs:
+      ok: ${{ steps.g.outputs.ok }}
+    steps:
+      - id: g
+        env:
+          T: ${{ secrets.TOP10_RELEASE_TOKEN }}
+        run: |
+          if [ -z "$T" ]; then echo "::notice::TOP10_RELEASE_TOKEN not set; skipping top10 run"; echo "ok=false" >> "$GITHUB_OUTPUT"; else echo "ok=true" >> "$GITHUB_OUTPUT"; fi
   plan:
+    needs: guard
+    if: needs.guard.outputs.ok == 'true'
     runs-on: ubuntu-latest
     timeout-minutes: 120
     outputs:

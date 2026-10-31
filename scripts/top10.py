@@ -61,22 +61,33 @@ def chat_bins(messages, duration):
     return chat, ww, raid_msgs
 
 
-def viewer_bins(samples, n):
+VIEW_GAP_MAX = 180  # 2サンプルの間隔がこれを超えたら補間せず「不明」
+
+
+def viewer_bins(samples, n, gaps=None):
+    """Per-bin viewers, or None where unknown. Only interpolates between samples <= VIEW_GAP_MAX apart;
+    outside that (cron skip/delay, recorder down, before first/after last sample) the bin is None."""
     if not samples:
         return None
-    pts = sorted((float(s["t"]), float(s["viewers"])) for s in samples)
+    pts = sorted({float(s["t"]): float(s["viewers"]) for s in samples}.items())
     out, j = [], 0
     for i in range(n):
         t = i * BIN + BIN / 2
         while j + 1 < len(pts) and pts[j + 1][0] <= t:
             j += 1
-        if t <= pts[0][0]:
-            out.append(pts[0][1]); continue
-        if j + 1 >= len(pts):
-            out.append(pts[-1][1]); continue
-        (t0, v0), (t1, v1) = pts[j], pts[j + 1]
-        out.append(v0 + (v1 - v0) * (t - t0) / (t1 - t0))
-    return out
+        v = None
+        if pts[j][0] <= t and j + 1 < len(pts) and pts[j + 1][0] - pts[j][0] <= VIEW_GAP_MAX:
+            (t0, v0), (t1, v1) = pts[j], pts[j + 1]
+            v = v0 + (v1 - v0) * (t - t0) / (t1 - t0)
+        else:
+            near = min(pts, key=lambda p: abs(p[0] - t)) if len(pts) < 3 else min(pts[max(0, j - 1):j + 2], key=lambda p: abs(p[0] - t))
+            if abs(near[0] - t) <= VIEW_GAP_MAX / 2:
+                v = near[1]
+        for g in gaps or []:
+            if float(g["from"]) < t < float(g["to"]):
+                v = None
+        out.append(v)
+    return out if any(v is not None for v in out) else None
 
 
 def detect_raids(viewers, chat, raid_msg_times):
@@ -89,6 +100,8 @@ def detect_raids(viewers, chat, raid_msg_times):
         i = w
         while i < len(viewers):
             before, after = viewers[i - w], viewers[i]
+            if before is None or after is None:
+                i += 1; continue
             if before > 0 and after - before >= max(RAID_JUMP_MIN, before * RAID_JUMP_RATIO):
                 cand.setdefault(i, "viewer_step")
                 i += w * 3
@@ -98,15 +111,17 @@ def detect_raids(viewers, chat, raid_msg_times):
         size = 0.0
         if viewers:
             w0 = max(0, b - w)
-            size = max(0.0, max(viewers[b:b + w + 1] or [viewers[b]]) - viewers[w0])
+            win = [v for v in viewers[b:b + w + 1] if v is not None]
+            size = max(0.0, max(win) - viewers[w0]) if win and viewers[w0] is not None else 0.0
         pre = chat[max(0, b - 18):b] or [base_chat]
         post = chat[b:b + 18] or [0]
         pre_rate, post_rate = sum(pre) / len(pre), sum(post) / len(post)
         chat_ratio = post_rate / max(pre_rate, base_chat, 0.5)
         hype = chat_ratio >= HYPE_CHAT_RATIO
-        if viewers and hype:
+        win = [v for v in (viewers or [])[b:b + w + 1] if v is not None]
+        if viewers and hype and win and viewers[max(0, b - w)] is not None:
             # comments per viewer must not collapse (pure raid chat spam is diluted by new viewers)
-            vb, va = viewers[max(0, b - w)], max(viewers[b:b + w + 1] or [1])
+            vb, va = viewers[max(0, b - w)], max(win)
             cpv_before, cpv_after = pre_rate / max(vb, 1), post_rate / max(va, 1)
             hype = cpv_after >= 0.5 * cpv_before
         if src == "viewer_step" and not hype and chat_ratio >= 1.3 and size < 0:
@@ -123,8 +138,9 @@ def adjust_viewers(viewers, raids):
     for r in raids:
         for i in range(r["bin"], len(adj)):
             dt = (i - r["bin"]) * BIN
-            adj[i] -= r["size"] * 0.5 ** (dt / RAID_HALF_LIFE)
-    return [max(0.0, v) for v in adj]
+            if adj[i] is not None:
+                adj[i] -= r["size"] * 0.5 ** (dt / RAID_HALF_LIFE)
+    return [None if v is None else max(0.0, v) for v in adj]
 
 
 def pick_segments(score, duration, k=10):
@@ -163,19 +179,22 @@ def pick_segments(score, duration, k=10):
     return taken
 
 
-def analyze(messages, duration, viewer_samples=None, raid_events=None, k=10):
+def analyze(messages, duration, viewer_samples=None, raid_events=None, k=10, viewer_gaps=None):
     chat, ww, raid_msgs = chat_bins(messages, duration)
     raid_msgs += [float(r["t"]) for r in (raid_events or [])]
     n = len(chat)
-    viewers = viewer_bins(viewer_samples, n)
+    viewers = viewer_bins(viewer_samples, n, viewer_gaps)
     raids = detect_raids(viewers, chat, raid_msgs)
     vadj = adjust_viewers(viewers, raids)
     zc, zw = robust_z(chat), robust_z(ww)
+    zv = [None] * n
     if vadj:
-        zv = robust_z(vadj)
-        raw = [W_CHAT * a + W_WW * b + W_VIEW * c for a, b, c in zip(zc, zw, zv)]
-    else:
-        raw = [(W_CHAT * a + W_WW * b) / (W_CHAT + W_WW) for a, b in zip(zc, zw)]
+        known = [i for i, v in enumerate(vadj) if v is not None]
+        for i, z in zip(known, robust_z([vadj[i] for i in known])):
+            zv[i] = z
+    # 視聴者不明のビンは重みをチャット側へ再正規化（0扱いにしない）
+    raw = [(W_CHAT * a + W_WW * b) / (W_CHAT + W_WW) if c is None else W_CHAT * a + W_WW * b + W_VIEW * c
+           for a, b, c in zip(zc, zw, zv)]
     score = smooth(raw, 3)
     base_rate = statistics.median(chat) * 6 if chat else 0
     segs = []
@@ -193,7 +212,8 @@ def analyze(messages, duration, viewer_samples=None, raid_events=None, k=10):
                      "laughRate": round(w / max(c, 1), 3), "peakPerMinute": peak_min,
                      "perMinute": round(c / max(mins, 1e-9), 1), "raids": overl, "reason": reason})
     return {"schemaVersion": 1, "durationSeconds": duration, "binSeconds": BIN,
-            "viewerData": bool(viewers), "raids": raids, "baselinePerMinute": base_rate, "segments": segs}
+            "viewerData": bool(viewers),
+            "viewerCoverage": round(sum(v is not None for v in viewers) / n, 3) if viewers else 0.0, "raids": raids, "baselinePerMinute": base_rate, "segments": segs}
 
 
 def load_jsonl(path):
@@ -211,12 +231,13 @@ def main():
     ap.add_argument("--out", default="top10.json")
     ap.add_argument("--matrix-out", help="write GitHub Actions matrix json")
     a = ap.parse_args()
-    vs = None
+    vs, gaps = None, None
     if a.viewers:
         d = json.load(open(a.viewers, encoding="utf-8"))
         vs = d["samples"] if isinstance(d, dict) else d
+        gaps = d.get("gaps") if isinstance(d, dict) else None
     rs = json.load(open(a.raids, encoding="utf-8")) if a.raids else None
-    res = analyze(load_jsonl(a.chat), a.duration, vs, rs, a.k)
+    res = analyze(load_jsonl(a.chat), a.duration, vs, rs, a.k, gaps)
     with open(a.out, "w", encoding="utf-8") as f:
         json.dump(res, f, ensure_ascii=False, indent=1)
     if a.matrix_out:

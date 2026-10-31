@@ -67,5 +67,29 @@ class T10(unittest.TestCase):
         c, _, _ = T.chat_bins(msgs, 60)
         self.assertEqual(c[0], T.PER_USER_CAP)
 
+    def test_viewer_gap_is_unknown_not_interpolated(self):
+        v = [{"t": t, "viewers": 100} for t in range(0, 600, 60)] + [{"t": t, "viewers": 5000} for t in range(1800, 2400, 60)]
+        b = T.viewer_bins(v, 240)
+        self.assertEqual(b[30], 100)
+        self.assertTrue(all(x is None for x in b[70:170]))  # 600..1800s gap -> unknown
+        self.assertEqual(b[200], 5000)
+
+    def test_unknown_bins_renormalize_to_chat(self):
+        dur = 2400
+        msgs = chat(dur, .3, [(1000, 1060, 4)])
+        v = [{"t": t, "viewers": 100} for t in range(0, 600, 60)]  # viewers only first 10 min
+        r = T.analyze(msgs, dur, v)
+        self.assertLess(r["viewerCoverage"], 0.3)
+        self.assertTrue(r["segments"][0]["start"] <= 1000 <= r["segments"][0]["end"])  # chat peak still wins
+        self.assertEqual(r["segments"][0]["rank"], 1)
+
+    def test_poller_dedupe_and_gaps(self):
+        import viewer_poll as P
+        rows = [{"at": f"2026-11-01T00:{m:02d}:05+00:00", "viewers": 10} for m in (1, 2, 2, 3, 9, 10)]
+        rows.append({"at": "2026-11-01T00:02:40+00:00", "viewers": 99})  # same minute, later -> dropped
+        out = P.build_series(rows, "2026-11-01T00:00:00Z")
+        self.assertEqual([s["t"] for s in out["samples"]], [65, 125, 185, 545, 605])
+        self.assertEqual(out["gaps"], [{"from": 185, "to": 545, "seconds": 360}])
+
 if __name__ == "__main__":
     unittest.main()
