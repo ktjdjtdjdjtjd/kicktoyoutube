@@ -1,0 +1,121 @@
+name: top10
+# 盛り上がりTop10（最大約5分×10本）を切り出し、コメントを焼き込み、GitHub Releasesへ保存する。
+# 仕様: bridgeclip docs/REQUIREMENTS_top10.md
+on:
+  workflow_dispatch:
+    inputs:
+      video:
+        description: "Kick VOD URL (kick.com/zingisukan2525/videos/<uuid>)"
+        required: true
+
+permissions:
+  contents: read
+
+concurrency:
+  group: top10-${{ inputs.video }}
+  cancel-in-progress: false
+
+env:
+  FONT_URL: "https://raw.githubusercontent.com/google/fonts/7da950f21232dc96d330070ae4cd5b98f02026d3/ofl/bizudpgothic/BIZUDPGothic-Regular.ttf"
+  FONT_BLOB_SHA: "0753da0963c2fa25c5b5990d13f51842cb34e50d"
+
+jobs:
+  plan:
+    runs-on: ubuntu-latest
+    timeout-minutes: 120
+    outputs:
+      matrix: ${{ steps.pick.outputs.matrix }}
+      slug: ${{ steps.plan.outputs.slug }}
+      uuid: ${{ steps.plan.outputs.uuid }}
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262  # v4
+      - uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065  # v5
+        with:
+          python-version: "3.12"
+      - run: pip install --quiet curl_cffi==0.14.0 "yt-dlp[default,curl-cffi]==2026.7.4" pillow==12.2.0
+      - name: Resolve VOD + download chat
+        id: plan
+        run: PYTHONPATH=scripts python scripts/burn_request.py --platform kick --video "${{ inputs.video }}" --limit-seconds 0
+      - name: Score + pick top10 (viewers/raids optional)
+        id: pick
+        run: |
+          dur=$(python -c "import json;print(json.load(open('out/meta.json'))['duration_s'])")
+          uuid="${{ steps.plan.outputs.uuid }}"
+          extra=""
+          # 配信中に viewer_poll.yml が記録した live-<id>.json を開始時刻(±10分)で対応付ける
+          python scripts/viewer_poll.py --link-meta out/meta.json --dir state/viewers --link-out out/viewers.json || true
+          [ -f out/viewers.json ] && extra="$extra --viewers out/viewers.json"
+          python scripts/top10.py --chat out/chat.jsonl --duration "$dur" $extra --out out/top10.json --matrix-out out/matrix.json
+          echo "matrix=$(cat out/matrix.json)" >> "$GITHUB_OUTPUT"
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02  # v4
+        with:
+          name: chatpack
+          path: out/
+          retention-days: 2
+
+  burn:
+    needs: plan
+    runs-on: ubuntu-latest
+    timeout-minutes: 120
+    strategy:
+      fail-fast: true
+      max-parallel: 5
+      matrix:
+        seg: ${{ fromJson(needs.plan.outputs.matrix) }}
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262  # v4
+      - uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065  # v5
+        with:
+          python-version: "3.12"
+      - run: pip install --quiet curl_cffi==0.14.0 "yt-dlp[default,curl-cffi]==2026.7.4" pillow==12.2.0 fonttools==4.60.1
+      - run: sudo apt-get update -qq && sudo apt-get install -y -qq ffmpeg
+      - name: Fetch font (pinned, verified)
+        run: |
+          mkdir -p fonts
+          curl -fsSL -o fonts/BIZUDPGothic-Regular.ttf "$FONT_URL"
+          [ "$(git hash-object fonts/BIZUDPGothic-Regular.ttf)" = "$FONT_BLOB_SHA" ] || { echo "font hash mismatch"; exit 1; }
+      - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093  # v4
+        with:
+          name: chatpack
+          path: out
+      - name: Burn clip
+        run: |
+          name=$(printf 'clip_%02d.mp4' "${{ matrix.seg.idx }}")
+          PYTHONPATH=scripts python scripts/burn.py \
+            "${{ needs.plan.outputs.slug }}" "${{ needs.plan.outputs.uuid }}" \
+            "${{ matrix.seg.start }}" "${{ matrix.seg.end }}" \
+            --chat out/chat.jsonl --emotes out/emotes --meta out/meta.json \
+            --font fonts/BIZUDPGothic-Regular.ttf --out "$name"
+          rm -f vod.mp4
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02  # v4
+        with:
+          name: clip-${{ matrix.seg.idx }}
+          path: clip_*.mp4
+          retention-days: 1
+
+  release:
+    needs: [plan, burn]
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    permissions:
+      contents: write   # Release作成のみ
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262  # v4
+      - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093  # v4
+        with:
+          name: chatpack
+          path: out
+      - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093  # v4
+        with:
+          pattern: clip-*
+          path: clips
+          merge-multiple: true
+      - name: Build index.json
+        run: python scripts/top10_index.py --top10 out/top10.json --meta out/meta.json --clips clips --uuid "${{ needs.plan.outputs.uuid }}" --run-id "${{ github.run_id }}" --chat out/chat.jsonl --out clips/index.json
+      - name: Upload to GitHub Release (one per stream)
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          tag="top10-${{ needs.plan.outputs.uuid }}"
+          if gh release view "$tag" >/dev/null 2>&1; then echo "release $tag already exists; stop"; exit 1; fi
+          gh release create "$tag" clips/clip_*.mp4 clips/clip_*-comments.json clips/clip_*-candidates.json clips/index.json --title "Top10 ${{ needs.plan.outputs.uuid }}" --notes "BridgeClip top10 clips (auto)" --latest=false
