@@ -14,6 +14,7 @@ from datetime import datetime, timezone
 TOKEN_URL = "https://id.kick.com/oauth/token"
 API = "https://api.kick.com/public/v1"
 GAP_MAX_SEC = 180
+UA = "kicktoyoutube-viewer-poll/1.0 (+https://github.com/ktjdjtdjdjtjd/kicktoyoutube)"
 
 
 def parse_ts(v):
@@ -25,13 +26,13 @@ def parse_ts(v):
 
 def app_token(cid, secret):
     body = urllib.parse.urlencode({"grant_type": "client_credentials", "client_id": cid, "client_secret": secret}).encode()
-    req = urllib.request.Request(TOKEN_URL, data=body, headers={"Content-Type": "application/x-www-form-urlencoded"})
+    req = urllib.request.Request(TOKEN_URL, data=body, headers={"Content-Type": "application/x-www-form-urlencoded", "User-Agent": UA})
     with urllib.request.urlopen(req, timeout=20) as r:
         return json.load(r)["access_token"]
 
 
 def fetch_stream(token, slug):
-    req = urllib.request.Request(f"{API}/channels?slug={urllib.parse.quote(slug)}", headers={"Authorization": f"Bearer {token}", "Accept": "application/json"})
+    req = urllib.request.Request(f"{API}/channels?slug={urllib.parse.quote(slug)}", headers={"Authorization": f"Bearer {token}", "Accept": "application/json", "User-Agent": UA})
     with urllib.request.urlopen(req, timeout=20) as r:
         data = json.load(r).get("data") or []
     st = (data[0].get("stream") or {}) if data else {}
