@@ -4,7 +4,9 @@
   "title": "緊急特番　神戸の山奥にあるとされる山賊が住み着くバラック小屋に潜入するぞ！",
   "start_time": "2026-10-30 19:59:01",
   "duration_s": 25501.0,
-  "status": "dispatched",
+  "status": "done",
   "retries": 1,
-  "dispatched_at": "2026-10-31T14:46:29.010948+00:00"
+  "dispatched_at": "2026-10-31T14:46:29.010948+00:00",
+  "updated_at": "2026-10-31T20:20:57.177652+00:00",
+  "yt_url": "https://www.youtube.com/watch?v=W6_l6Wl4pdk"
 }
