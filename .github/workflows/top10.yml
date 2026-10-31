@@ -16,6 +16,10 @@ concurrency:
   cancel-in-progress: false
 
 env:
+  # 切り抜き動画は他人の配信なので、公開リポジトリには置かない。
+  # 処理(分)はこの公開リポジトリで回し(無料)、MP4は非公開リポジトリのReleaseへ直接アップロードする。
+  # 公開リポジトリのartifactは誰でも取得できるため、MP4をartifactにしない。
+  CLIPS_REPO: "ktjdjtdjdjtjd/zingisukan-top10-clips"
   FONT_URL: "https://raw.githubusercontent.com/google/fonts/7da950f21232dc96d330070ae4cd5b98f02026d3/ofl/bizudpgothic/BIZUDPGothic-Regular.ttf"
   FONT_BLOB_SHA: "0753da0963c2fa25c5b5990d13f51842cb34e50d"
 
@@ -47,9 +51,16 @@ jobs:
           [ -f out/viewers.json ] && extra="$extra --viewers out/viewers.json"
           python scripts/top10.py --chat out/chat.jsonl --duration "$dur" $extra --out out/top10.json --matrix-out out/matrix.json
           echo "matrix=$(cat out/matrix.json)" >> "$GITHUB_OUTPUT"
+      - name: Create private draft release (stop if it already exists)
+        env:
+          GH_TOKEN: ${{ secrets.TOP10_RELEASE_TOKEN }}
+        run: |
+          tag="top10-${{ steps.plan.outputs.uuid }}"
+          if gh release view "$tag" --repo "$CLIPS_REPO" >/dev/null 2>&1; then echo "release $tag already exists; stop"; exit 1; fi
+          gh release create "$tag" --repo "$CLIPS_REPO" --draft --title "Top10 ${{ steps.plan.outputs.uuid }}" --notes "BridgeClip top10 clips (auto)"
       - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02  # v4
         with:
-          name: chatpack
+          name: chatpack   # チャットとメタのみ（動画は含めない）
           path: out/
           retention-days: 2
 
@@ -87,35 +98,31 @@ jobs:
             --chat out/chat.jsonl --emotes out/emotes --meta out/meta.json \
             --font fonts/BIZUDPGothic-Regular.ttf --out "$name"
           rm -f vod.mp4
-      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02  # v4
-        with:
-          name: clip-${{ matrix.seg.idx }}
-          path: clip_*.mp4
-          retention-days: 1
+      - name: Upload clip to private draft release
+        env:
+          GH_TOKEN: ${{ secrets.TOP10_RELEASE_TOKEN }}   # fine-grained PAT: CLIPS_REPO のみ / Contents: Read and write
+        run: |
+          name=$(printf 'clip_%02d.mp4' "${{ matrix.seg.idx }}")
+          gh release upload "top10-${{ needs.plan.outputs.uuid }}" "$name" --repo "$CLIPS_REPO"
+          rm -f "$name"
 
   release:
     needs: [plan, burn]
     runs-on: ubuntu-latest
     timeout-minutes: 60
-    permissions:
-      contents: write   # Release作成のみ
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262  # v4
       - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093  # v4
         with:
           name: chatpack
           path: out
-      - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093  # v4
-        with:
-          pattern: clip-*
-          path: clips
-          merge-multiple: true
-      - name: Build index.json
-        run: python scripts/top10_index.py --top10 out/top10.json --meta out/meta.json --clips clips --uuid "${{ needs.plan.outputs.uuid }}" --run-id "${{ github.run_id }}" --chat out/chat.jsonl --out clips/index.json
-      - name: Upload to GitHub Release (one per stream)
+      - name: Build index.json from uploaded clips, then publish (still private repo)
         env:
-          GH_TOKEN: ${{ github.token }}
+          GH_TOKEN: ${{ secrets.TOP10_RELEASE_TOKEN }}
         run: |
           tag="top10-${{ needs.plan.outputs.uuid }}"
-          if gh release view "$tag" >/dev/null 2>&1; then echo "release $tag already exists; stop"; exit 1; fi
-          gh release create "$tag" clips/clip_*.mp4 clips/clip_*-comments.json clips/clip_*-candidates.json clips/index.json --title "Top10 ${{ needs.plan.outputs.uuid }}" --notes "BridgeClip top10 clips (auto)" --latest=false
+          mkdir -p clips
+          gh release download "$tag" --repo "$CLIPS_REPO" --pattern 'clip_*.mp4' --dir clips
+          python scripts/top10_index.py --top10 out/top10.json --meta out/meta.json --clips clips --uuid "${{ needs.plan.outputs.uuid }}" --run-id "${{ github.run_id }}" --chat out/chat.jsonl --out clips/index.json
+          gh release upload "$tag" --repo "$CLIPS_REPO" clips/clip_*-comments.json clips/clip_*-candidates.json clips/index.json
+          gh release edit "$tag" --repo "$CLIPS_REPO" --draft=false --latest=false
