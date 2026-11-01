@@ -9,5 +9,15 @@
   "dispatched_at": "2026-10-31T14:46:29.010948+00:00",
   "updated_at": "2026-10-31T20:20:57.177652+00:00",
   "yt_url": "https://www.youtube.com/watch?v=W6_l6Wl4pdk",
-  "chapters_attempts": 1
+  "chapters_attempts": 1,
+  "chapters": {
+    "result": "retryable-transcription-failed",
+    "at": "2026-11-01T02:07:04.146378+00:00",
+    "valid_segments": 9,
+    "expected_segments": 10,
+    "missing_indices": [
+      8
+    ],
+    "invalid_files": []
+  }
 }
