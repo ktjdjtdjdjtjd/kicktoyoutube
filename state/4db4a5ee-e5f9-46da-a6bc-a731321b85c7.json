@@ -4,7 +4,9 @@
   "title": "明日何かが起こる… 三軍会議！？",
   "start_time": "2026-11-01 10:03:55",
   "duration_s": 10703.0,
-  "status": "dispatched",
+  "status": "done",
   "retries": 0,
-  "dispatched_at": "2026-11-01T14:44:30.566856+00:00"
+  "dispatched_at": "2026-11-01T14:44:30.566856+00:00",
+  "updated_at": "2026-11-01T16:38:33.379857+00:00",
+  "yt_url": "https://www.youtube.com/watch?v=zOMqrdHG8TA"
 }
