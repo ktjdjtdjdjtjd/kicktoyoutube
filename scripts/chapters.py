@@ -10,6 +10,7 @@
     python chapters.py [--config config.json] [--uuid <特定動画>] [--dry-run]
 """
 import argparse
+import http.client
 import json
 import math
 import os
@@ -380,7 +381,7 @@ def _gemini_with_rollback(path, st, lines, ccfg, api_key, dry_run):
     (呼び元はそのまま return し、次サイクルで再挑戦する。赤failにしない)。"""
     try:
         return gemini_chapters(lines, api_key, ccfg.get("model", "gemini-flash-latest"))
-    except (urllib.error.HTTPError, urllib.error.URLError) as e:
+    except (urllib.error.HTTPError, urllib.error.URLError, http.client.RemoteDisconnected) as e:
         code = getattr(e, "code", None)
         if code is None or code in (429, 500, 502, 503, 504):
             if not dry_run:
