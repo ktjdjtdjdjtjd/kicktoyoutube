@@ -4,7 +4,9 @@
   "title": "会議やるわ",
   "start_time": "2026-11-05 11:12:52",
   "duration_s": 12569.0,
-  "status": "dispatched",
+  "status": "done",
   "retries": 0,
-  "dispatched_at": "2026-11-05T18:32:08.276023+00:00"
+  "dispatched_at": "2026-11-05T18:32:08.276023+00:00",
+  "updated_at": "2026-11-05T22:04:30.245652+00:00",
+  "yt_url": "https://www.youtube.com/watch?v=uVL9dsf7cpk"
 }
