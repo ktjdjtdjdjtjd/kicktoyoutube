@@ -4,7 +4,9 @@
   "title": "キッカーズ崩壊！？",
   "start_time": "2026-11-05 03:18:12",
   "duration_s": 8267.0,
-  "status": "dispatched",
+  "status": "done",
   "retries": 0,
-  "dispatched_at": "2026-11-05T10:54:53.060967+00:00"
+  "dispatched_at": "2026-11-05T10:54:53.060967+00:00",
+  "updated_at": "2026-11-05T12:37:50.445293+00:00",
+  "yt_url": "https://www.youtube.com/watch?v=_Iv9poVGy58"
 }
