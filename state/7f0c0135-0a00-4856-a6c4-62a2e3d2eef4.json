@@ -4,7 +4,9 @@
   "title": "東京に着いたが、泊まる場所が無く野宿になるかかも。。。",
   "start_time": "2026-11-06 15:12:23",
   "duration_s": 29962.0,
-  "status": "dispatched",
+  "status": "done",
   "retries": 0,
-  "dispatched_at": "2026-11-06T23:57:28.659531+00:00"
+  "dispatched_at": "2026-11-06T23:57:28.659531+00:00",
+  "updated_at": "2026-11-07T05:38:54.979996+00:00",
+  "yt_url": "https://www.youtube.com/watch?v=1QFKWtqXHWI"
 }
