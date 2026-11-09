@@ -4,7 +4,9 @@
   "title": "初めてのテマキ村に行く！",
   "start_time": "2026-11-08 16:15:07",
   "duration_s": 16433.0,
-  "status": "dispatched",
+  "status": "done",
   "retries": 0,
-  "dispatched_at": "2026-11-08T22:20:28.174712+00:00"
+  "dispatched_at": "2026-11-08T22:20:28.174712+00:00",
+  "updated_at": "2026-11-09T01:33:18.413512+00:00",
+  "yt_url": "https://www.youtube.com/watch?v=9l4HmsTj35g"
 }
