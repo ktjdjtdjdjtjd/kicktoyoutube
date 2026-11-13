@@ -4,7 +4,10 @@
   "title": "過去最高の盛り上がり　笑いあり　見どころあり　史上最大のうまみイベント　キッカーズ会議！",
   "start_time": "2026-11-12 10:31:33",
   "duration_s": 7349.0,
-  "status": "dispatched",
+  "status": "needs-review",
   "retries": 4,
-  "dispatched_at": "2026-11-13T18:04:18.773770+00:00"
+  "dispatched_at": "2026-11-13T18:04:18.773770+00:00",
+  "failure_class": "process-failed",
+  "last_failed_at": "2026-11-13T23:32:05.011726+00:00",
+  "review_reason": "自動再試行5回失敗のため自動投入を停止。再開する場合は retries を0に戻し status を削除する"
 }
