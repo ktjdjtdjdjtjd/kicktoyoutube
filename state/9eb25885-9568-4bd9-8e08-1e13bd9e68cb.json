@@ -4,7 +4,10 @@
   "title": "暗黒映画 舞台裏楽屋配信",
   "start_time": "2026-11-14 02:40:35",
   "duration_s": 21858.0,
-  "status": "dispatched",
+  "status": "needs-review",
   "retries": 4,
-  "dispatched_at": "2026-11-15T07:51:08.407402+00:00"
+  "dispatched_at": "2026-11-15T07:51:08.407402+00:00",
+  "failure_class": "process-failed",
+  "last_failed_at": "2026-11-15T15:20:59.831003+00:00",
+  "review_reason": "自動再試行5回失敗のため自動投入を停止。再開する場合は retries を0に戻し status を削除する"
 }
