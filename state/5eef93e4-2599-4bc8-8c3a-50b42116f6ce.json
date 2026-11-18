@@ -4,7 +4,10 @@
   "title": "街の人とベイブレード対決をして5連勝するまで帰れません！　in 渋谷",
   "start_time": "2026-11-16 12:57:40",
   "duration_s": 13075.0,
-  "status": "dispatched",
+  "status": "needs-review",
   "retries": 4,
-  "dispatched_at": "2026-11-18T07:07:53.006805+00:00"
+  "dispatched_at": "2026-11-18T07:07:53.006805+00:00",
+  "failure_class": "process-failed",
+  "last_failed_at": "2026-11-18T16:27:11.409448+00:00",
+  "review_reason": "自動再試行5回失敗のため自動投入を停止。再開する場合は retries を0に戻し status を削除する"
 }
