@@ -4,7 +4,10 @@
   "title": "健康診断で要医療 2軍キャプテンも決めるぞ",
   "start_time": "2026-11-17 03:48:13",
   "duration_s": 25485.0,
-  "status": "dispatched",
+  "status": "needs-review",
   "retries": 4,
-  "dispatched_at": "2026-11-18T23:00:59.198905+00:00"
+  "dispatched_at": "2026-11-18T23:00:59.198905+00:00",
+  "failure_class": "process-failed",
+  "last_failed_at": "2026-11-19T04:12:06.090232+00:00",
+  "review_reason": "自動再試行5回失敗のため自動投入を停止。再開する場合は retries を0に戻し status を削除する"
 }
