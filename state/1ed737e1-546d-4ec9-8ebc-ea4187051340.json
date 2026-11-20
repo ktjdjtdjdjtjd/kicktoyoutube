@@ -4,7 +4,9 @@
   "title": "暗黒野球開幕！？　緊急事態発生",
   "start_time": "2026-11-19 03:22:01",
   "duration_s": 4303.0,
-  "status": "dispatched",
+  "status": "done",
   "retries": 3,
-  "dispatched_at": "2026-11-20T18:51:07.133632+00:00"
+  "dispatched_at": "2026-11-20T18:51:07.133632+00:00",
+  "updated_at": "2026-11-20T20:15:40.031879+00:00",
+  "yt_url": "https://www.youtube.com/watch?v=F8jOaGa0zjo"
 }
