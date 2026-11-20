@@ -4,7 +4,9 @@
   "title": "暗黒野球打ち上げ焼肉　馴れ合い",
   "start_time": "2026-11-19 08:12:02",
   "duration_s": 22289.0,
-  "status": "dispatched",
+  "status": "done",
   "retries": 1,
-  "dispatched_at": "2026-11-20T02:38:19.540939+00:00"
+  "dispatched_at": "2026-11-20T02:38:19.540939+00:00",
+  "updated_at": "2026-11-20T07:20:44.130998+00:00",
+  "yt_url": "https://www.youtube.com/watch?v=wq-pwnx7T2g"
 }
