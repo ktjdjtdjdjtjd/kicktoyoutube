@@ -4,7 +4,9 @@
   "title": "不正アクセスにより個人情報が流出したかも。。",
   "start_time": "2026-11-20 09:10:10",
   "duration_s": 12741.0,
-  "status": "dispatched",
+  "status": "done",
   "retries": 0,
-  "dispatched_at": "2026-11-22T08:30:41.938455+00:00"
+  "dispatched_at": "2026-11-22T08:30:41.938455+00:00",
+  "updated_at": "2026-11-22T10:59:05.145097+00:00",
+  "yt_url": "https://www.youtube.com/watch?v=YOADC6pcp2c"
 }
