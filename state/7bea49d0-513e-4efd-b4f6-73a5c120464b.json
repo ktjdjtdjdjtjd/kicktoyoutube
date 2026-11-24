@@ -4,7 +4,10 @@
   "title": "キッカーズ3軍決起集会。2次会開始！",
   "start_time": "2026-11-18 12:41:39",
   "duration_s": 25496.0,
-  "status": "dispatched",
+  "status": "needs-review",
   "retries": 4,
-  "dispatched_at": "2026-11-23T22:49:40.963395+00:00"
+  "dispatched_at": "2026-11-23T22:49:40.963395+00:00",
+  "failure_class": "process-failed",
+  "last_failed_at": "2026-11-24T06:44:57.631186+00:00",
+  "review_reason": "自動再試行5回失敗のため自動投入を停止。再開する場合は retries を0に戻し status を削除する"
 }
