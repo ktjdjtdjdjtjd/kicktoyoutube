@@ -4,7 +4,10 @@
   "title": "何故か、3軍新監督に任命されました！",
   "start_time": "2026-11-22 01:00:17",
   "duration_s": 47203.0,
-  "status": "dispatched",
+  "status": "needs-review",
   "retries": 4,
-  "dispatched_at": "2026-11-26T03:33:56.077105+00:00"
+  "dispatched_at": "2026-11-26T03:33:56.077105+00:00",
+  "failure_class": "process-failed",
+  "last_failed_at": "2026-11-26T22:20:58.003276+00:00",
+  "review_reason": "自動再試行5回失敗のため自動投入を停止。再開する場合は retries を0に戻し status を削除する"
 }
