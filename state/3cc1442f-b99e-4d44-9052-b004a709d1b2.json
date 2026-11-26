@@ -4,7 +4,10 @@
   "title": "【DAY2】GTAVI ストーリーモードクリアするまで１日1回しか寝てはいけない枠　Streaming until I beat GTA VI (no sleeping)",
   "start_time": "2026-11-23 07:00:33",
   "duration_s": 68710.0,
-  "status": "dispatched",
+  "status": "needs-review",
   "retries": 4,
-  "dispatched_at": "2026-11-25T21:04:01.568424+00:00"
+  "dispatched_at": "2026-11-25T21:04:01.568424+00:00",
+  "failure_class": "process-failed",
+  "last_failed_at": "2026-11-26T03:33:56.077105+00:00",
+  "review_reason": "自動再試行5回失敗のため自動投入を停止。再開する場合は retries を0に戻し status を削除する"
 }
