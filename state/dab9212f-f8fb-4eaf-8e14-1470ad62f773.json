@@ -4,7 +4,10 @@
   "title": "緊急会議 あの黒澤くんがまた！？",
   "start_time": "2026-11-26 09:45:16",
   "duration_s": 18072.0,
-  "status": "dispatched",
+  "status": "needs-review",
   "retries": 4,
-  "dispatched_at": "2026-11-28T04:17:13.626884+00:00"
+  "dispatched_at": "2026-11-28T04:17:13.626884+00:00",
+  "failure_class": "process-failed",
+  "last_failed_at": "2026-11-28T13:26:34.409288+00:00",
+  "review_reason": "自動再試行5回失敗のため自動投入を停止。再開する場合は retries を0に戻し status を削除する"
 }
